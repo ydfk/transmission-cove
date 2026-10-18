@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.impeccable
+artifacts
+test-results
+playwright-report
+servers.local.json
+.env*

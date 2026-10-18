@@ -1,0 +1,12 @@
+{
+  "kind": "browser-screenshot",
+  "capturedOn": "2026-10-18",
+  "source": "tests/workspace.spec.ts",
+  "route": "http://127.0.0.1:5173/?demo=1&count=500",
+  "viewport": {
+    "width": 1440,
+    "height": 960
+  },
+  "state": "Transmission Cove, light theme, synthetic demo data, all rows mode, merged size sort",
+  "original": ".impeccable/review/compact-pagination.png"
+}

@@ -1,0 +1,153 @@
+name: Release Transmission Cove
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '已存在的版本 Tag，例如 v0.1.0'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ steps.meta.outputs.version }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+      image: ${{ steps.meta.outputs.image }}
+      commit: ${{ steps.meta.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+      - name: 校验 Tag 与版本
+        id: meta
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          node scripts/release-meta.mjs
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: 防止重新覆盖已发布版本
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          published=$(gh api --paginate "repos/$GH_REPO/releases?per_page=100" | jq -r --arg tag "$RELEASE_TAG" '.[] | select(.tag_name == $tag) | .draft')
+          if [ "$published" = false ]; then
+            echo '该版本已经发布，停止构建和镜像推送。请创建新版本 Tag。' >&2
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm test
+      - run: npm run test:release
+      - run: npm run build
+      - name: 生成静态安装包与校验文件
+        env:
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+        run: npm run release:package
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-assets
+          path: |
+            artifacts/transmission-cove-*-web.zip
+            artifacts/transmission-cove-*-web.tar.gz
+            artifacts/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
+
+  docker:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.build.outputs.commit }}
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ needs.build.outputs.image }}:${{ needs.build.outputs.tag }}
+            ${{ needs.build.outputs.image }}:${{ needs.build.outputs.version }}
+          labels: |
+            org.opencontainers.image.title=Transmission Cove
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.build.outputs.commit }}
+            org.opencontainers.image.version=${{ needs.build.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  publish:
+    needs: [build, docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-assets
+          path: artifacts
+      - name: 校验并发布 GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.build.outputs.tag }}
+          PRERELEASE: ${{ needs.build.outputs.prerelease }}
+          IMAGE: ${{ needs.build.outputs.image }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd artifacts
+          sha256sum --check SHA256SUMS
+          # 已发布的 Release 不覆盖；失败遗留草稿可继续上传。
+          if release_json=$(gh release view "$RELEASE_TAG" --json databaseId,isDraft); then
+            if [ "$(jq -r '.isDraft' <<< "$release_json")" != true ]; then
+              echo '该 Tag 的 Release 已发布，请使用新的版本 Tag。' >&2
+              exit 1
+            fi
+          else
+            # 区分不存在与 API/权限故障，失败时不继续创建。
+            release_list=$(gh api --paginate "repos/$GH_REPO/releases?per_page=100" --jq '.[].tag_name')
+            if grep -Fxq "$RELEASE_TAG" <<< "$release_list"; then exit 1; fi
+            gh release create "$RELEASE_TAG" --verify-tag --draft --title "Transmission Cove $RELEASE_TAG" --generate-notes
+          fi
+          release_id=$(gh release view "$RELEASE_TAG" --json databaseId --jq '.databaseId')
+          gh release upload "$RELEASE_TAG" transmission-cove-*-web.zip transmission-cove-*-web.tar.gz SHA256SUMS --clobber
+          # 草稿使用 ID 校验；按 Tag 查询不能可靠读取草稿。
+          gh api "repos/$GH_REPO/releases/$release_id" --jq '.assets[].name' > uploaded.txt
+          for file in transmission-cove-*-web.zip transmission-cove-*-web.tar.gz SHA256SUMS; do grep -Fxq "$file" uploaded.txt; done
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease="$PRERELEASE" --latest=false
+          printf 'Release: https://github.com/%s/releases/tag/%s\nDocker: %s:%s\n' "$GH_REPO" "$RELEASE_TAG" "$IMAGE" "$RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"

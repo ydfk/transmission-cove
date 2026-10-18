@@ -1,0 +1,7 @@
+[
+  {
+    "id": "nas",
+    "name": "群晖 NAS",
+    "url": "http://nas.example:9091/transmission/rpc"
+  }
+]
