@@ -6,10 +6,11 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { cn } from '@/lib/utils'
 import type { RpcValues } from '@/lib/types'
 
-export function Modal({ title, description, children, onClose, wide = false }: { title: string; description: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
-  return <Dialog open onOpenChange={open => { if (!open) onClose() }}><DialogContent className={wide ? 'sm:max-w-3xl max-h-[90dvh] overflow-y-auto' : 'max-h-[90dvh] overflow-y-auto'}><DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader>{children}</DialogContent></Dialog>
+export function Modal({ title, description, children, onClose, wide = false, className }: { title: string; description: string; children: ReactNode; onClose: () => void; wide?: boolean; className?: string }) {
+  return <Dialog open onOpenChange={open => { if (!open) onClose() }}><DialogContent className={cn('max-h-[90dvh] overflow-y-auto', wide && 'sm:max-w-3xl', className)}><DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader>{children}</DialogContent></Dialog>
 }
 export function TextField({ label, description, ...props }: React.ComponentProps<typeof Input> & { label: string; description?: string }) {
   const id = props.id ?? label
@@ -19,15 +20,15 @@ export function Choice({ value, options, onChange, label }: { value: string; opt
   return <Select value={value} onValueChange={onChange}><SelectTrigger aria-label={label} className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{options.map(([value, text]) => <SelectItem key={value} value={value}>{text}</SelectItem>)}</SelectGroup></SelectContent></Select>
 }
 export type Setting = { key: string; label: string; type?: 'number' | 'text' | 'textarea' | 'time' | 'days'; min?: number; max?: number; step?: number; options?: [string, string][]; hint?: string }
-export function SettingsForm({ settings, initial, onSave, pending }: { settings: Setting[]; initial: RpcValues; onSave: (patch: RpcValues) => Promise<unknown>; pending: boolean }) {
+export function SettingsForm({ settings, initial, onSave, pending, compact = false }: { settings: Setting[]; initial: RpcValues; onSave: (patch: RpcValues) => Promise<unknown>; pending: boolean; compact?: boolean }) {
   const [patch, setPatch] = useState<RpcValues>({})
   const update = (key: string, value: unknown) => setPatch(previous => ({ ...previous, [key]: value }))
   const available = settings.filter(setting => initial[setting.key] !== undefined)
   return <form onSubmit={async event => { event.preventDefault(); if (Object.keys(patch).length) { try { await onSave(patch); setPatch({}) } catch { /* 错误由请求层统一显示，保留编辑内容。 */ } } }}>
-    <FieldGroup className="settings-grid">
+    <FieldGroup className="settings-grid" data-compact={compact || undefined}>
       {available.map(setting => {
         const value = patch[setting.key] ?? initial[setting.key]
-        return <Field key={setting.key} orientation={typeof value === 'boolean' ? 'horizontal' : 'vertical'}>
+        return <Field key={setting.key} data-wide={compact && ['text', 'textarea', 'days'].includes(setting.type ?? '') || undefined} orientation={typeof value === 'boolean' || (compact && !['textarea', 'days'].includes(setting.type ?? '')) ? 'horizontal' : 'vertical'}>
           <FieldLabel htmlFor={setting.key}>{setting.label}</FieldLabel>
           {typeof value === 'boolean' ? <Switch id={setting.key} checked={value} onCheckedChange={next => update(setting.key, next)} />
             : setting.options ? <Choice label={setting.label} value={String(value)} options={setting.options} onChange={next => update(setting.key, typeof initial[setting.key] === 'number' ? Number(next) : next)} />

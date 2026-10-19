@@ -40,6 +40,7 @@ export class TransmissionClient implements RpcClient {
       : { method: method.replaceAll('_', '-'), arguments: legacyParams(method, params), tag: requestId })
     for (let attempt = 0; attempt < 2; attempt++) {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (this.server.remoteTarget && this.server.url === '/api/remote-rpc') headers['X-Cove-Rpc-Target'] = this.server.remoteTarget
       if (this.sessionId) headers['X-Transmission-Session-Id'] = this.sessionId
       if (this.credentials?.username) {
         const bytes = new TextEncoder().encode(`${this.credentials.username}:${this.credentials.password}`)
@@ -61,7 +62,13 @@ export class TransmissionClient implements RpcClient {
       }
       if (response.status === 401) throw new RpcError('认证失败，请检查用户名和密码', 401)
       if (response.status === 403) throw new RpcError('访问被拒绝，请检查 RPC 白名单和代理配置', 403)
-      if (!response.ok) throw new RpcError(`RPC 请求失败（HTTP ${response.status}）`, response.status)
+      if (!response.ok) {
+        if (this.server.url === '/api/remote-rpc') {
+          const detail = await response.json().catch(() => null) as { error?: string } | null
+          if (typeof detail?.error === 'string') throw new RpcError(detail.error, response.status)
+        }
+        throw new RpcError(`RPC 请求失败（HTTP ${response.status}）`, response.status)
+      }
       let payload
       try { payload = await response.json() } catch { throw new RpcError('服务器未返回 JSON，请检查是否填写了正确的 RPC 路径') }
       if (modern) {

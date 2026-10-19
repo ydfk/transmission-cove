@@ -3,6 +3,7 @@ import { readFile, stat } from 'node:fs/promises'
 import { resolve, extname, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { lookup } from 'node:dns/promises'
+import { remoteRpcTarget } from './remote-rpc.mjs'
 
 const maxBody = 24 * 1024 * 1024
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.woff2': 'font/woff2' }
@@ -47,26 +48,32 @@ export function createApp({ servers = [], root = resolve('dist'), fetcher = fetc
   return http.createServer(async (request, response) => {
     response.setHeader('X-Content-Type-Options', 'nosniff')
     response.setHeader('Referrer-Policy', 'same-origin')
-    response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'")
+    response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http: https:; font-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'")
     try {
       const url = new URL(request.url, 'http://localhost')
       if (url.pathname === '/api/server' && request.method === 'GET') {
         const server = configured[0]
-        sendJson(response, 200, server ? { id: 'current', name: '当前 Transmission', url: '/api/rpc', address: server.url, managed: true } : null); return
+        sendJson(response, 200, server ? { id: 'current', name: '当前 Transmission', url: '/api/rpc', address: server.url, managed: true, remoteProxy: '/api/remote-rpc' } : null); return
       }
-      if (url.pathname === '/api/rpc') {
+      if (url.pathname === '/api/rpc' || url.pathname === '/api/remote-rpc') {
+        const remote = url.pathname === '/api/remote-rpc'
         const server = configured[0]
-        if (!server) { sendJson(response, 404, { error: '未知服务器' }); return }
+        if (!remote && !server) { sendJson(response, 404, { error: '未知服务器' }); return }
         if (request.method !== 'POST') { sendJson(response, 405, { error: '仅允许 POST' }); return }
         const origin = request.headers.origin
-        if (request.headers['sec-fetch-site'] === 'cross-site' || (origin && new URL(origin).host !== request.headers.host)) { sendJson(response, 403, { error: '拒绝跨站请求' }); return }
+        if ((remote && !origin) || request.headers['sec-fetch-site'] === 'cross-site' || (origin && new URL(origin).host !== request.headers.host)) { sendJson(response, 403, { error: '拒绝跨站请求' }); return }
         if (!request.headers['content-type']?.toLowerCase().startsWith('application/json')) { sendJson(response, 415, { error: '需要 application/json' }); return }
         if (Number(request.headers['content-length'] ?? 0) > maxBody) { sendJson(response, 413, { error: '请求过大' }); return }
         const body = await bodyOf(request)
-        try { JSON.parse(body.toString('utf8')) } catch { sendJson(response, 400, { error: 'JSON 无效' }); return }
+        let payload
+        try { payload = JSON.parse(body.toString('utf8')) } catch { sendJson(response, 400, { error: 'JSON 无效' }); return }
+        let target = server?.url
+        if (remote) {
+          try { target = remoteRpcTarget(request.headers['x-cove-rpc-target'], payload) } catch (error) { sendJson(response, 400, { error: error.message }); return }
+        }
         const headers = { 'Content-Type': 'application/json' }
         for (const name of ['authorization', 'x-transmission-session-id']) if (request.headers[name]) headers[name] = String(request.headers[name])
-        const upstream = await fetcher(await upstreamUrl(server.url), { method: 'POST', headers, body, redirect: 'manual', signal: AbortSignal.timeout(20000) })
+        const upstream = await fetcher(await upstreamUrl(target), { method: 'POST', headers, body, redirect: 'manual', signal: AbortSignal.timeout(20000) })
         if (upstream.status >= 300 && upstream.status < 400) { sendJson(response, 502, { error: '上游重定向被拒绝，请配置最终 RPC 地址' }); return }
         const responseHeaders = { 'Content-Type': upstream.headers.get('content-type') ?? 'application/json', 'Cache-Control': 'no-store' }
         const sessionId = upstream.headers.get('x-transmission-session-id')

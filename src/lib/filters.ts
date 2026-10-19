@@ -11,7 +11,7 @@ export function matchesStatus(torrent: Torrent, status: string) {
     case 'completed': return torrent.percent_done >= 1
     case 'checking': return [1, 2].includes(torrent.status)
     case 'active': return torrent.rate_download > 0 || torrent.rate_upload > 0
-    case 'inactive': return !(torrent.rate_download > 0 || torrent.rate_upload > 0)
+    case 'inactive': return torrent.status !== 0 && torrent.rate_download === 0 && torrent.rate_upload === 0
     case 'error': return torrent.error > 0
     default: return true
   }

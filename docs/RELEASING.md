@@ -7,10 +7,10 @@
 工作流依次执行：
 
 1. 校验版本，拒绝覆盖已经发布的同版本 Release。
-2. 安装锁定依赖，运行单元/代理测试及发布脚本测试，执行 TypeScript 与 Vite 生产构建。
-3. 生成 `transmission-cove-<版本>-web.zip`、`transmission-cove-<版本>-web.tar.gz` 和 `SHA256SUMS`。两个安装包的根目录直接包含 `index.html` 和 `assets/`，用于原生 Web 覆盖安装。
+2. 安装锁定依赖，运行单元/代理测试、发布脚本测试及 Linux 安装脚本测试，执行 TypeScript 与 Vite 生产构建。
+3. 生成 `transmission-cove-<版本>-web.zip`、`transmission-cove-<版本>-web.tar.gz`、`install.sh` 和覆盖这些文件的 `SHA256SUMS`。两个安装包的根目录直接包含 `index.html` 和 `assets/`，用于原生 Web 覆盖安装。
 4. 构建 linux/amd64 与 linux/arm64 镜像，推送到 `ghcr.io/<所有者>/<仓库>`；提供 `v0.1.0` 和 `0.1.0` 两种版本标签，不自动覆盖 `latest`。
-5. 在镜像成功后上传安装包并发布 GitHub Release；带 `-rc.1` 等后缀时标记为预发布。先写草稿再发布，失败遗留草稿可继续；工作流不会自动指定 GitHub 的 Latest Release。
+5. 在镜像成功后上传安装包及脚本并发布 GitHub Release；带 `-rc.1` 等后缀时标记为预发布。先写草稿再发布，失败遗留草稿可继续；稳定版设为 GitHub Latest Release，供一键脚本发现，预发布不设为 Latest。发布旧版本补丁时需留意 Latest 指向，可在 Release 页面调整。镜像依然使用明确版本 Tag，没有 `latest` 镜像标签。
 
 只使用仓库自带的 `GITHUB_TOKEN`，权限按作业限制为读取源码、写 Packages 或写 Release。GitHub Actions 和 Packages 必须获仓库/组织策略允许；没有要求配置 PAT。
 

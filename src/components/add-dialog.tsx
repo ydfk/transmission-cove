@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { UploadCloud } from 'lucide-react'
 import { toast } from 'sonner'
-import { Modal, TextField } from './forms'
+import { Modal } from './forms'
 import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
+import { Input } from './ui/input'
 import { Field, FieldGroup, FieldLabel } from './ui/field'
 import { Checkbox } from './ui/checkbox'
 import { bytes } from '@/lib/format'
@@ -45,14 +46,12 @@ export function AddDialog({ client, session, files: droppedFiles, onClose, onAdd
     await onAdded()
     if (!failedFiles.length && !failedUrls.length) onClose()
   }
-  return <Modal title="添加下载任务" description="支持 Torrent 文件、磁力链接和种子 URL，可一次添加多个。" onClose={() => { if (!busy) onClose() }}>
-    <form onSubmit={submit}><FieldGroup>
-      <label className="upload-area" onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); setFiles([...files, ...Array.from(event.dataTransfer.files)]) }}><UploadCloud /><strong>选择或拖入 Torrent 文件</strong><span>{files.length ? `${files.length} 个文件 · ${files.map(file => file.name).join('、')}` : '每个文件最大 16 MiB'}</span><input aria-label="种子文件" type="file" accept=".torrent" multiple onChange={event => setFiles([...files, ...Array.from(event.target.files ?? [])])} /></label>
-      <Field><FieldLabel htmlFor="add-links">磁力链接或 URL</FieldLabel><Textarea id="add-links" rows={3} placeholder="每行一个链接" value={links} onChange={event => setLinks(event.target.value)} /></Field>
-      <TextField label="下载目录" value={directory} onChange={event => { setDirectory(event.target.value); setFreeSpace('') }} placeholder="服务器默认目录" />
-      <div className="flex items-center gap-3"><Button type="button" variant="ghost" size="sm" disabled={!directory || busy} onClick={async () => { try { const result = await client.call('free_space', { path: directory }); setFreeSpace(bytes(Number(result.size_bytes))) } catch (error) { toast.error((error as Error).message) } }}>检查可用空间</Button><span className="muted text-xs">{freeSpace}</span></div>
-      <TextField label="标签" placeholder="用英文逗号分隔" value={labels} onChange={event => setLabels(event.target.value)} />
-      <Field orientation="horizontal"><Checkbox id="add-paused" checked={paused} onCheckedChange={value => setPaused(!!value)} /><FieldLabel htmlFor="add-paused">添加后暂停，可先选择要下载的文件</FieldLabel></Field>
-    </FieldGroup><div className="form-footer"><Button type="button" variant="outline" disabled={busy} onClick={onClose}>取消</Button><Button type="submit" disabled={busy}>{busy ? '正在添加…' : '添加任务'}</Button></div></form>
+  return <Modal title="添加下载任务" description="Torrent 文件、磁力链接或 URL，支持批量添加。" className="compact-dialog add-dialog" onClose={() => { if (!busy) onClose() }}>
+    <form onSubmit={submit}><FieldGroup className="add-fields">
+      <label className="upload-area" onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); event.stopPropagation(); if (!busy) setFiles([...files, ...Array.from(event.dataTransfer.files)]) }}><UploadCloud /><div className="upload-copy"><strong>选择或拖入 Torrent 文件</strong><span title={files.map(file => file.name).join('、')}>{files.length ? `已选 ${files.length} 个 · ${files.map(file => file.name).join('、')}` : '每个文件最大 16 MiB'}</span></div><input aria-label="种子文件" type="file" accept=".torrent" multiple disabled={busy} onChange={event => setFiles([...files, ...Array.from(event.target.files ?? [])])} /></label>
+      <Field><FieldLabel htmlFor="add-links">磁力链接或 URL</FieldLabel><Textarea id="add-links" rows={2} placeholder="每行一个链接" value={links} onChange={event => setLinks(event.target.value)} /></Field>
+      <Field><div className="directory-field-heading"><FieldLabel htmlFor="add-directory">下载目录</FieldLabel><span className="muted" role="status">{freeSpace}</span><Button type="button" variant="ghost" size="xs" disabled={!directory || busy} onClick={async () => { try { const result = await client.call('free_space', { path: directory }); setFreeSpace(bytes(Number(result.size_bytes))) } catch (error) { toast.error((error as Error).message) } }}>检查可用空间</Button></div><Input id="add-directory" value={directory} onChange={event => { setDirectory(event.target.value); setFreeSpace('') }} placeholder="服务器默认目录" /></Field>
+      <Field orientation="horizontal" className="add-label-field"><FieldLabel htmlFor="add-labels">标签</FieldLabel><Input id="add-labels" placeholder="可选，用英文逗号分隔" value={labels} onChange={event => setLabels(event.target.value)} /></Field>
+    </FieldGroup><div className="form-footer add-footer"><Field orientation="horizontal" className="add-paused"><Checkbox id="add-paused" checked={paused} disabled={busy} onCheckedChange={value => setPaused(!!value)} /><FieldLabel htmlFor="add-paused" title="暂停添加后，可先选择要下载的文件">添加后暂停</FieldLabel></Field><div className="dialog-actions"><Button type="button" variant="outline" disabled={busy} onClick={onClose}>取消</Button><Button type="submit" disabled={busy}>{busy ? '正在添加…' : '添加任务'}</Button></div></div></form>
   </Modal>
 }

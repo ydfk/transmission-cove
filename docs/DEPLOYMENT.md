@@ -12,6 +12,67 @@
 
 这些方式都只部署管理界面。**不需要重新添加已有种子，不需要挂载下载数据目录。** 首次 Tag 发布前可按下文从本地源码构建；首次工作流成功后，仓库 Releases 提供安装包，GHCR 提供镜像。当前没有在线演示。
 
+## 一键安装与更新
+
+入口脚本为 [`scripts/install.sh`](../scripts/install.sh)，使用 POSIX `sh`，适用于群晖等 Linux NAS。发布工作流将脚本和校验文件一起上传到 Release；**必须先有包含脚本的稳定 Release**，README 的在线命令才能使用。没有稳定版本时，可下载指定 Release 的 `install.sh` 并传入 `--version v0.1.0`，或按下文源码部署。脚本不安装 Transmission daemon。
+
+```bash
+curl -fL https://github.com/ydfk/transmission-cove/releases/latest/download/install.sh -o /tmp/transmission-cove-install.sh
+sudo sh /tmp/transmission-cove-install.sh
+```
+
+以 root 登录时不加 `sudo`。默认需要确认目标目录，自动任务可显式传入 `--yes` 跳过确认。依赖 `curl`、`tar`、`sha256sum` 以及常见 Linux / BusyBox 文件工具；缺少依赖、下载失败或 SHA256 校验失败时不会替换原目录。
+
+| 参数 | 默认值 | 说明 |
+| --- | --- | --- |
+| `--mode` | `native` | 原生静态文件替换；`docker` 为已发布镜像部署 |
+| `--version` | `latest` | GitHub 最新稳定 Release，可指定如 `v0.1.0` 或预发布 Tag |
+| `--web-dir` | 自动识别 | 已存在且直接包含 `index.html` 的 Web 目录绝对路径，仅原生模式 |
+| `--restore` | 不回退 | 指定该 Web 目录同级的 `.cove-backup-*` 备份，仅原生模式 |
+| `--port` | `8080` | Docker 模式的监听端口，范围 1024–65535 |
+| `--name` | `transmission-cove` | Docker 容器名，更新时应沿用同名 |
+| `--rpc-url` | `http://127.0.0.1:9091/transmission/rpc` | Docker host 网络下的默认上游，不包含凭据 |
+| `--yes` | 关闭 | 跳过执行前确认 |
+
+### 原生模式
+
+自动检测群晖 `/var/packages/transmission/target/share/transmission/` 下的 `web` / `public_html`，以及 Linux `/usr/share/transmission/web`、`/usr/local/share/transmission/web`。找不到或发现多个不同目录时退出，要求手动确认路径。使用自定义 `TRANSMISSION_WEB_HOME`、其他套件来源或 QNAP 等设备时应显式指定实际生效目录：
+
+```bash
+sudo sh /tmp/transmission-cove-install.sh --web-dir /已确认的/web
+```
+
+脚本先在临时目录下载并校验包，拒绝路径穿越和链接；再在 Web 目录同级准备新文件。旧目录改名为 `web.cove-backup-时间-进程号` 后切换新目录，切换失败会尝试恢复旧目录。原目录普通文件保留，新静态文件授予读取 / 目录遍历权限；暂存目录中的旧符号链接不会沿用，原始链接仍在备份中。不会重启 daemon 或改套件启动配置；一般只需强制刷新浏览器。套件更新可能覆盖界面，届时重新运行脚本。
+
+更新使用相同命令；每次保留独立备份，不自动清理。回退使用安装输出的实际路径，回退前也会备份当前界面：
+
+```bash
+sudo sh /tmp/transmission-cove-install.sh --web-dir /已确认的/web --restore /已确认的/web.cove-backup-时间-进程号
+```
+
+目录权限、ACL 或 NAS 文件系统挂载点可能阻止目录改名；脚本会报错并保留备份，不能把本地脚本测试视为所有 NAS 套件验收。异常断电无法保证自动恢复，应按输出的备份路径恢复；仅在确认没有安装进程后清理对应 `.cove-lock` 空目录。
+
+### Docker 模式
+
+```bash
+sudo sh /tmp/transmission-cove-install.sh --mode docker
+```
+
+使用 Linux Docker 的 [host 网络](https://docs.docker.com/engine/network/drivers/host/)，不需要 Compose、源码或下载目录挂载。访问 `http://NAS地址:8080`；host 网络中的 `127.0.0.1` 指 NAS，适合 RPC 仅监听回环地址的本机 Transmission。端口占用时加 `--port 18080`；认证仍在界面输入，RPC 白名单 / 防火墙仍然生效。此模式仅针对 Linux NAS，Windows/macOS 请使用下文 Compose 方式。
+
+镜像必须已发布到公开 GHCR 包且支持本机架构。脚本仅管理带安装标记的同名容器（默认 `transmission-cove`，可用 `--name` 修改），拒绝覆盖其他同名容器。更新前拉取镜像，再将旧容器改名并停止；新界面 HTTP 检查失败时恢复旧容器及原运行状态。HTTP 成功只验证 Web 服务，不代表上游 RPC 登录或实际任务已验收。
+
+Docker 回退时，先确认备份名称，停止并保留当前容器，再将旧容器改回名称并启动：
+
+```bash
+docker stop transmission-cove
+docker rename transmission-cove transmission-cove-before-rollback
+docker rename transmission-cove-backup-时间-进程号 transmission-cove
+docker start transmission-cove
+```
+
+以上名称中的时间 / 进程号请使用脚本输出值，`transmission-cove-before-rollback` 必须尚未存在。备份容器在验收新版本后自行清理。
+
 ## 群晖 / 本地 NAS 原生部署
 
 ### 1. 准备静态文件
@@ -113,7 +174,7 @@ sudo cp -a "$TR_NEW_WEB/." "$TR_WEB_DIR/"
 
 前提是原生 Transmission 的 RPC 在宿主机 9091 端口可从容器访问。若仅监听 127.0.0.1、使用非标准端口/路径，或 NAS 防火墙与 RPC IP 白名单阻止容器来源，需要在部署层调整；界面无法改变这些网络限制。
 
-只有非标准端口/路径，或当前实例实际在另一台主机时，才执行：
+如果只想在当前浏览器切换后端，Shift 点击设置并填写远程 RPC 地址即可，无需下面的环境配置。如果需要更改所有浏览器自动连接的默认地址（如非标准端口或另一台主机），才执行：
 
 ```bash
 cp .env.example .env
@@ -125,7 +186,7 @@ Windows PowerShell 使用 `Copy-Item .env.example .env`。编辑 `.env`，取消
 TRANSMISSION_RPC_URL=http://192.168.1.10:9092/transmission/rpc
 ```
 
-此变量是管理员的部署覆盖项，不是多服务器配置。填写 RPC 地址，不是 `/transmission/web/`；容器中的 localhost 指容器本身。不要把用户名或密码嵌入 URL，已有 Transmission 认证继续生效。
+此变量是管理员的默认连接覆盖项，不是多服务器配置。填写 RPC 地址，不是 `/transmission/web/`；容器中的 localhost 指容器本身。不要把用户名或密码嵌入 URL，已有 Transmission 认证继续生效。
 
 ### 2. 构建并启动
 
@@ -233,7 +294,7 @@ $env:TRANSMISSION_RPC_URL = 'http://127.0.0.1:9092/custom/rpc'
 npm start
 ```
 
-独立 Node 服务不会自动读取 `.env`。可用上述进程环境变量，或兼容 JSON 文件（`servers.example.json` 复制为 `servers.local.json`，只允许一个上游）。优先级为显式环境变量、JSON、本机默认值；首次启动两者都不需要。旧浏览器中的服务器列表和手填 RPC 路径不再读取。
+独立 Node 服务不会自动读取 `.env`。可用上述进程环境变量，或兼容 JSON 文件（`servers.example.json` 复制为 `servers.local.json`，只允许一个默认上游）。优先级为显式环境变量、JSON、本机默认值；首次启动两者都不需要。旧多服务器列表不再读取；新的隐藏切换入口只记住当前浏览器的一个手动地址。
 
 长期运行时将 `node server/index.mjs` 加入现有服务管理器，工作目录设为项目目录并配置相同环境变量。只在本机访问时将 `HOST` 设为 `127.0.0.1`。
 
@@ -241,15 +302,32 @@ npm start
 
 | 配置 | 默认值 | 说明 |
 | --- | --- | --- |
-| `TRANSMISSION_RPC_URL` | Docker/Compose 为宿主机 9091；本地 Node 为 `http://127.0.0.1:9091/transmission/rpc` | 唯一上游完整 RPC URL；显式配置可覆盖默认值 |
+| `TRANSMISSION_RPC_URL` | Docker/Compose 为宿主机 9091；本地 Node 为 `http://127.0.0.1:9091/transmission/rpc` | 自动连接的默认完整 RPC URL；显式配置可覆盖默认值 |
 | `PORT` | `8080` | Node 服务监听端口；容器通常保持默认 |
 | `HOST` | `0.0.0.0` | Node 监听地址 |
 | `SERVERS_FILE` | `servers.local.json` | 未设置上游环境变量时读取的兼容 JSON 文件；Docker 内默认 `/config/servers.json` |
 | `STATIC_ROOT` | `dist` | 独立服务静态目录，按工作目录解析 |
 | `TRANSMISSION_WEB_HOME` | 未设置 | **Transmission daemon** 的变量；用于原生替换，不是 Node 的变量 |
 
-代理只有一个固定上游，不接受浏览器传入任意 URL；透传 RPC 认证和 `X-Transmission-Session-Id`，拒绝重定向和跨站请求，限制请求体为 24 MiB。前端 Torrent 文件上限为 16 MiB。代理无额外用户账户体系，沿用 Transmission RPC 认证。
+默认连接通过固定上游 `/api/rpc`；隐藏切换入口通过 `/api/remote-rpc` 连接手动填写的地址，不更改默认配置。远程入口只接受同源 POST JSON、Transmission RPC 方法与以 `/rpc` 结尾的 HTTP/HTTPS 地址。两种代理均透传 RPC 认证和 `X-Transmission-Session-Id`，拒绝重定向和跨站请求，限制请求体为 24 MiB。前端 Torrent 文件上限为 16 MiB。代理无额外用户账户体系，沿用 Transmission RPC 认证。
 
-远程访问时将已有 HTTPS 反向代理指向本界面的 8080 端口，并保留上游 RPC 认证和访问控制。建议使用独立域名的根路径。不要把无认证的 RPC 经此代理开放到公网。
+远程代理能访问服务主机可达的 RPC 地址，隐藏入口和 Origin 校验不是访问认证。请在可信网络部署；需要外部访问时，将已有 HTTPS 反向代理指向本界面的 8080 端口，配置入口访问控制并保留上游 RPC 认证。建议使用独立域名的根路径。不要把无认证的 RPC 经此代理开放到公网。
 
 Transmission 的 RPC IP 白名单必须允许实际连接来源：原生替换通常是浏览器主机；独立代理通常是 Docker/Node 主机或容器网络。按部署网络添加所需来源，不要为了连接方便清空安全设置。自定义上游域名还需获主机名白名单允许；默认 Docker 别名会转换为 IP。
+
+### 原生版远程连接
+
+直接替换 Web 文件后，默认连接当前 Transmission，无需增加代理。仅在 Shift 切换到另一台服务器且目标不支持 CORS 时，需要同源反向代理。纯静态文件不能自行转发请求。
+
+若已有 Nginx 对外提供当前 Cove 页面，可在**同一站点**增加下面的路径，将示例域名换成实际远程 RPC 地址：
+
+```nginx
+location = /other-transmission/rpc {
+    proxy_pass http://nas.example:9091/transmission/rpc;
+    proxy_set_header Host $proxy_host;
+    proxy_read_timeout 25s;
+    client_max_body_size 24m;
+}
+```
+
+配置生效后，从该 Nginx 站点打开 Cove，在 Shift 设置的 RPC 地址中填写 `/other-transmission/rpc`。不能继续从原 daemon 的 9091 地址打开页面，因为那个来源没有此代理路径。认证和 `X-Transmission-Session-Id` 请求头应正常透传；如果现有配置覆盖这些头，需要相应调整。远程 Transmission 的 IP / 主机名白名单必须允许该代理。Cove 经 HTTPS 打开时，同源服务器仍可代理 HTTP RPC。

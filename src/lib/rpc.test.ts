@@ -4,6 +4,18 @@ import { legacyParams, normalize } from './protocol'
 const server = { id: 'test', name: 'Test', url: '/transmission/rpc' }
 const json = (value: unknown) => new Response(JSON.stringify(value), { headers: { 'content-type': 'application/json' } })
 describe('Transmission 协议与操作边界', () => {
+  it('远程目标仅传给内置代理，409 重试保留目标和独立凭据', async () => {
+    const target = 'http://remote.example:9091/transmission/rpc'
+    const fetcher = vi.fn().mockResolvedValueOnce(new Response('', { status: 409, headers: { 'X-Transmission-Session-Id': 'remote-session' } })).mockResolvedValueOnce(json({ result: 'success', arguments: { version: '4.0.6' } }))
+    await new TransmissionClient({ ...server, url: '/api/remote-rpc', remoteTarget: target }, { username: 'remote', password: 'fixture' }, fetcher).connect()
+    for (const [url, options] of fetcher.mock.calls) {
+      expect(url).toBe('/api/remote-rpc')
+      expect(options.headers['X-Cove-Rpc-Target']).toBe(target)
+    }
+    const direct = vi.fn().mockResolvedValue(json({ result: 'success', arguments: { version: '4.0.6' } }))
+    await new TransmissionClient({ ...server, remoteTarget: target }, undefined, direct).connect()
+    expect(direct.mock.calls[0][1].headers['X-Cove-Rpc-Target']).toBeUndefined()
+  })
   it('409 握手后重试相同请求，携带会话标识', async () => {
     const fetcher = vi.fn().mockResolvedValueOnce(new Response('', { status: 409, headers: { 'X-Transmission-Session-Id': 'token-a' } })).mockResolvedValueOnce(json({ result: 'success', arguments: { version: '4.0.6', 'rpc-version-semver': '5.3.0' } }))
     const client = new TransmissionClient(server, undefined, fetcher)

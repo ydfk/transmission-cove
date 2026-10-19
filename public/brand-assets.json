@@ -1,0 +1,19 @@
+{
+  "kind": "original-vector-and-browser-rasterization",
+  "source": "cove.svg",
+  "createdOn": "2026-10-19",
+  "author": "Transmission Cove project",
+  "rasters": [
+    {
+      "file": "favicon-32.png",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "apple-touch-icon.png",
+      "width": 180,
+      "height": 180
+    }
+  ],
+  "method": "Original SVG rendered at target size in Microsoft Edge with Playwright, transparent background; no external artwork."
+}

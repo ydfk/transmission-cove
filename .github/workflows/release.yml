@@ -59,6 +59,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run test:release
+      - run: sh scripts/install.test.sh
       - run: npm run build
       - name: 生成静态安装包与校验文件
         env:
@@ -71,6 +72,7 @@ jobs:
             artifacts/transmission-cove-*-web.zip
             artifacts/transmission-cove-*-web.tar.gz
             artifacts/SHA256SUMS
+            artifacts/install.sh
           if-no-files-found: error
           retention-days: 14
 
@@ -145,9 +147,11 @@ jobs:
             gh release create "$RELEASE_TAG" --verify-tag --draft --title "Transmission Cove $RELEASE_TAG" --generate-notes
           fi
           release_id=$(gh release view "$RELEASE_TAG" --json databaseId --jq '.databaseId')
-          gh release upload "$RELEASE_TAG" transmission-cove-*-web.zip transmission-cove-*-web.tar.gz SHA256SUMS --clobber
+          gh release upload "$RELEASE_TAG" transmission-cove-*-web.zip transmission-cove-*-web.tar.gz SHA256SUMS install.sh --clobber
           # 草稿使用 ID 校验；按 Tag 查询不能可靠读取草稿。
           gh api "repos/$GH_REPO/releases/$release_id" --jq '.assets[].name' > uploaded.txt
-          for file in transmission-cove-*-web.zip transmission-cove-*-web.tar.gz SHA256SUMS; do grep -Fxq "$file" uploaded.txt; done
-          gh release edit "$RELEASE_TAG" --draft=false --prerelease="$PRERELEASE" --latest=false
+          for file in transmission-cove-*-web.zip transmission-cove-*-web.tar.gz SHA256SUMS install.sh; do grep -Fxq "$file" uploaded.txt; done
+          latest=false
+          if [ "$PRERELEASE" = false ]; then latest=true; fi
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease="$PRERELEASE" --latest="$latest"
           printf 'Release: https://github.com/%s/releases/tag/%s\nDocker: %s:%s\n' "$GH_REPO" "$RELEASE_TAG" "$IMAGE" "$RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"

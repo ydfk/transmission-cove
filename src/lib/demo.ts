@@ -17,12 +17,13 @@ export function createDemoTorrents(count = 428): Torrent[] {
       download_dir: ['/volume1/downloads/系统镜像/Linux', '/volume1/downloads/影像/开源动画', '/volume1/downloads/资料', '/volume1/downloads/影像/自然', '/volume2/archive'][i % 5], peers_connected: status === 0 ? 0 : i % 24 + 1,
       trackers: [{ id: 0, announce: 'https://tracker.example.org/announce' }],
       tracker_list: 'https://tracker.example.org/announce',
-      tracker_stats: [{ id: 0, host: 'tracker.example.org', announce: 'https://tracker.example.org/announce', tier: 0, last_announce_result: 'Success', seeder_count: 128, leecher_count: 32, next_announce_time: Date.now() / 1000 + 900 }],
+      tracker_stats: [{ id: 0, host: 'tracker.example.org', announce: 'https://tracker.example.org/announce', tier: 0, last_announce_result: 'Success', seeder_count: i === 8 ? -1 : 128 + i, leecher_count: i === 8 ? -1 : i % 33, next_announce_time: Date.now() / 1000 + 900 }],
       files: [{ name: `${name}/content.iso`, length: size, bytes_completed: size * progress }, { name: `${name}/README.txt`, length: 4096, bytes_completed: 4096 }],
       file_stats: [{ wanted: true, priority: 0, bytes_completed: size * progress }, { wanted: true, priority: 0, bytes_completed: 4096 }],
       peers: [{ address: '192.0.2.12', client_name: 'Transmission 4.1.3', progress: 1, rate_to_client: 125000, rate_to_peer: 34000, flag_str: 'DE', is_encrypted: true }],
       downloaded_ever: size * progress, uploaded_ever: size * 1.25, magnet_link: `magnet:?xt=urn:btih:${(i + 1).toString(16).padStart(40, '0')}`,
-      bandwidth_priority: 0, download_limit: 1000, download_limited: false, upload_limit: 1000, upload_limited: false,
+      have_valid: Math.floor(size * progress), seconds_seeding: status === 6 ? 86400 * (i % 8 + 1) + i * 3600 : 0, done_date: status === 6 ? 1760000000 - i * 3600 + 1800 : 0,
+      bandwidth_priority: i % 3 - 1, download_limit: 1000, download_limited: false, upload_limit: 1000, upload_limited: false,
       honors_session_limits: true, peer_limit: 50, seed_ratio_limit: 2, seed_ratio_mode: 0, seed_idle_limit: 30, seed_idle_mode: 0, group: '', comment: '仅用于界面演示的模拟任务。',
     }
   })
@@ -58,7 +59,7 @@ export class DemoClient implements RpcClient {
     else if (method === 'free_space') result = { size_bytes: 2.4 * 1024 ** 4 }
     else if (method === 'port_test') result = { port_is_open: true }
     else if (method === 'blocklist_update') result = { blocklist_size: 1200 }
-    else if (method === 'session_stats') result = { current_stats: { uploaded_bytes: 360 * 1024 ** 3, downloaded_bytes: 124 * 1024 ** 3, seconds_active: 142200, files_added: 24 }, cumulative_stats: { uploaded_bytes: 12 * 1024 ** 4, downloaded_bytes: 4 * 1024 ** 4, seconds_active: 7645300, files_added: 428 } }
+    else if (method === 'session_stats') result = { current_stats: { uploaded_bytes: 360 * 1024 ** 3, downloaded_bytes: 124 * 1024 ** 3, seconds_active: 142200, files_added: 24, session_count: 1 }, cumulative_stats: { uploaded_bytes: 12 * 1024 ** 4, downloaded_bytes: 4 * 1024 ** 4, seconds_active: 7645300, files_added: 428, session_count: 162 } }
     else if (method === 'group_get') result = { group: [] }
     return structuredClone(result) as T
   }

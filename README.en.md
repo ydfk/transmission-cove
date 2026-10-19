@@ -34,7 +34,7 @@ Transmission Cove (**Cove** for short) is a third-party web interface for Transm
 - **Detailed control** — File selection and priorities, renaming, download paths, Tracker editing, Peers, speed limits, and seeding rules. Global settings reflect daemon capabilities.
 - **Compact and readable** — Resizable sidebar and columns, combined metrics, colored status icons, transfer statistics, light and dark themes, and mobile layouts.
 
-Currently supports one server only. The application interface is in Simplified Chinese. RSS, automated download rules, long-term history charts, and torrent creation are outside the current scope.
+Connects to one server at a time, automatically by default, with a hidden manual switch. The application interface is in Simplified Chinese. RSS, automated download rules, long-term history charts, and torrent creation are outside the current scope.
 
 <a id="quick-start"></a>
 ## Quick start
@@ -46,6 +46,24 @@ You need a running **Transmission 4.0+** instance with RPC access enabled. Choos
 | Native web replacement | Synology packages or local NAS installations without another persistent service | Your existing `/transmission/web/` |
 | Docker Compose | A separate interface deployment for your existing Transmission instance | `http://localhost:8080` |
 | Node.js | Hosts without Docker that can run Node.js 22.12+ | `http://localhost:8080` |
+
+### One-command NAS installation
+
+Run this in your NAS SSH terminal. The script detects common Synology / Linux Transmission web directories, asks for confirmation, downloads the latest stable release, verifies SHA256, and backs up the existing interface before installing:
+
+```bash
+curl -fL https://github.com/ydfk/transmission-cove/releases/latest/download/install.sh -o /tmp/transmission-cove-install.sh && sudo sh /tmp/transmission-cove-install.sh
+```
+
+Requires a published stable Release containing `install.sh`, plus `curl`, `tar`, and `sha256sum` on the NAS. Before the first release, use the source deployment methods below. Omit `sudo` when logged in as root. The script installs only the interface; it does not change Transmission configuration or download data.
+
+If detection fails, specify `--web-dir /已确认的/web` using your confirmed path. Run it again to update; each installation keeps a backup. Use `--version v0.1.0` to pin a release and `--restore` to roll back. Linux NAS hosts with Docker / Container Manager can also run:
+
+```bash
+sudo sh /tmp/transmission-cove-install.sh --mode docker
+```
+
+Docker mode uses host networking, serves `http://NAS地址:8080` (replace the hostname with your NAS address), and connects to local port 9091 by default. No source build is needed. See the [one-command deployment guide](docs/DEPLOYMENT.md#一键安装与更新) for options, backups, and rollback.
 
 ### Docker Compose
 
@@ -94,12 +112,16 @@ The standard same-host deployment needs no connection configuration. Set overrid
 
 | Option | Default | Purpose |
 | --- | --- | --- |
-| `TRANSMISSION_RPC_URL` | Docker: `http://host.docker.internal:9091/transmission/rpc`; Node: `http://127.0.0.1:9091/transmission/rpc` | Override the single upstream RPC address |
+| `TRANSMISSION_RPC_URL` | Docker: `http://host.docker.internal:9091/transmission/rpc`; Node: `http://127.0.0.1:9091/transmission/rpc` | Override the default RPC address for automatic connection |
 | `PORT` | `8080` | Node service port |
 | `HOST` | `0.0.0.0` | Node service bind address |
 | `TRANSMISSION_WEB_HOME` | Unset | Static web directory used by the Transmission daemon for native replacement |
 
 Compose reads `.env` from the project directory; the standalone Node service uses process environment variables. See the [deployment guide](docs/DEPLOYMENT.md#配置与网络) for all options, HTTPS, and access control.
+
+To switch backends, **hold Shift and click “设置” (Settings) in the lower left**. On mobile, append `?backend=1` to the current page URL (or `&backend=1` if it already has query parameters). Enter the remote Transmission instance’s complete RPC address. The connection is verified before switching. Only the address is remembered in this browser; passwords are not persisted. Choose “恢复自动连接” to restore automatic connection.
+
+Development, Docker, and Node deployments use the built-in proxy for the entered address, **without environment changes or service restarts**. Native replacements connect to the current Transmission instance by default. For manual cross-origin connections in native mode, configure a same-origin reverse proxy as needed, or enable CORS on the target. Native HTTPS pages cannot connect directly to HTTP backends. See [manual backend switching](docs/USAGE.md#隐藏的后端切换).
 
 <a id="documentation"></a>
 ## Documentation
@@ -112,7 +134,7 @@ The detailed guides below are currently maintained in Simplified Chinese.
 | [Usage and troubleshooting](docs/USAGE.md) | Filter semantics, cross-page selection, shortcuts, and RPC errors |
 | [Releases](docs/RELEASING.md) | Tag rules, GitHub Release, GHCR, and failed-run recovery |
 | [Development](docs/DEVELOPMENT.md) | Local demos, browser tests, and isolated daemon integration |
-| [Architecture](docs/ARCHITECTURE.md) | RPC compatibility, incremental updates, and the fixed upstream proxy |
+| [Architecture](docs/ARCHITECTURE.md) | RPC compatibility, incremental updates, default connections, and remote proxying |
 | [Validation record](docs/VALIDATION.md) | Existing evidence and checks still needed on target devices |
 
 <a id="development"></a>
@@ -125,7 +147,7 @@ npm ci
 npm run dev
 ```
 
-Open `http://127.0.0.1:5173/?demo=1` for simulated data; append `&count=500` or `&count=2000` to change the collection size. Demo actions never affect a real Transmission instance. The development server does not proxy RPC; use the production Node service for real connections.
+Open `http://127.0.0.1:5173/?demo=1` for simulated data; append `&count=500` or `&count=2000` to change the collection size. Demo actions never affect a real Transmission instance. Without demo parameters, the proxy connects to local port 9091 by default. To connect to another NAS, Shift-click Settings and enter its complete RPC address and required credentials. Do not include passwords in the URL. See the [development guide](docs/DEVELOPMENT.md).
 
 ```bash
 npm test

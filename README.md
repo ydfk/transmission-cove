@@ -34,7 +34,7 @@ Transmission Cove（简称 **Cove**）是面向 Transmission 4.0+ 的第三方 W
 - **深入管理任务** — 文件选择与优先级、重命名、下载路径、Tracker 编辑、Peers、限速和做种规则；全局设置按 daemon 能力显示。
 - **紧凑而清晰** — 可拖动侧栏、可调整列宽、合并指标列、彩色状态图标、传输统计、明暗主题与手机布局。
 
-当前仅支持单服务器；界面语言为简体中文。RSS、自动下载规则、长期历史图表和创建种子不在当前范围。
+每次连接一个服务器，默认自动连接，也提供隐藏的手动切换入口；界面语言为简体中文。RSS、自动下载规则、长期历史图表和创建种子不在当前范围。
 
 <a id="quick-start"></a>
 ## 快速开始
@@ -46,6 +46,24 @@ Transmission Cove（简称 **Cove**）是面向 Transmission 4.0+ 的第三方 W
 | 原生 Web 替换 | 群晖套件或本地 NAS，不想增加常驻服务 | 原来的 `/transmission/web/` |
 | Docker Compose | 独立部署界面，保留现有 Transmission | `http://localhost:8080` |
 | Node.js | 无 Docker，但可以运行 Node.js 22.12+ | `http://localhost:8080` |
+
+### NAS 一键安装
+
+在 NAS 的 SSH 终端执行以下命令，脚本会识别常见的群晖 / Linux Transmission Web 目录，确认后下载最新稳定版、校验 SHA256 并备份安装：
+
+```bash
+curl -fL https://github.com/ydfk/transmission-cove/releases/latest/download/install.sh -o /tmp/transmission-cove-install.sh && sudo sh /tmp/transmission-cove-install.sh
+```
+
+需要仓库已发布包含 `install.sh` 的稳定 Release，以及 NAS 上的 `curl`、`tar` 和 `sha256sum`。首次发布前请使用下方源码部署方式；以 root 登录时去掉 `sudo`。脚本只部署界面，不修改 Transmission 配置或下载数据。
+
+未识别到目录时用 `--web-dir /已确认的/web` 指定；重复执行即可更新，每次保留备份。支持 `--version v0.1.0` 固定版本和 `--restore` 回退。已安装 Docker / Container Manager 的 Linux NAS 也可以执行：
+
+```bash
+sudo sh /tmp/transmission-cove-install.sh --mode docker
+```
+
+Docker 模式使用 host 网络，默认访问 `http://NAS地址:8080`、连接本机 9091；无需源码构建。完整参数、备份与回退见[一键部署指南](docs/DEPLOYMENT.md#一键安装与更新)。
 
 ### Docker Compose
 
@@ -94,12 +112,16 @@ npm start
 
 | 配置项 | 默认值 | 用途 |
 | --- | --- | --- |
-| `TRANSMISSION_RPC_URL` | Docker：`http://host.docker.internal:9091/transmission/rpc`；Node：`http://127.0.0.1:9091/transmission/rpc` | 覆盖唯一上游 RPC 地址 |
+| `TRANSMISSION_RPC_URL` | Docker：`http://host.docker.internal:9091/transmission/rpc`；Node：`http://127.0.0.1:9091/transmission/rpc` | 覆盖自动连接的默认 RPC 地址 |
 | `PORT` | `8080` | Node 服务监听端口 |
 | `HOST` | `0.0.0.0` | Node 服务监听地址 |
 | `TRANSMISSION_WEB_HOME` | 未设置 | Transmission daemon 的静态 Web 目录，供原生替换使用 |
 
 Compose 可读取项目目录的 `.env`，独立 Node 服务使用进程环境变量。完整配置、HTTPS 与访问控制见[部署指南](docs/DEPLOYMENT.md#配置与网络)。
+
+需要切换后端时，**按住 Shift 点击左下角“设置”**。手机可在当前页面 URL 加上 `?backend=1`（已有查询参数时加 `&backend=1`）。填写远程 Transmission 的完整 RPC 地址并验证后切换；仅在当前浏览器记住地址，密码不持久化，支持“恢复自动连接”。
+
+开发版、Docker 和 Node 版会通过内置代理连接填写的地址，**无需修改环境变量或重启服务**。原生覆盖版默认连接当前 Transmission；手动跨域连接时，按需配置同源反向代理，或由目标提供 CORS。原生 HTTPS 页面不能直接连接 HTTP 后端。详见[手动切换说明](docs/USAGE.md#隐藏的后端切换)。
 
 <a id="documentation"></a>
 ## 文档
@@ -112,7 +134,7 @@ Compose 可读取项目目录的 `.env`，独立 Node 服务使用进程环境�
 | [使用与排错](docs/USAGE.md) | 筛选语义、跨页选择、快捷键、RPC 错误 |
 | [发布指南](docs/RELEASING.md) | Tag 规则、GitHub Release、GHCR、失败重跑 |
 | [开发指南](docs/DEVELOPMENT.md) | 本地演示、浏览器测试、隔离 daemon 联调 |
-| [架构](docs/ARCHITECTURE.md) | RPC 兼容层、增量同步、固定上游代理 |
+| [架构](docs/ARCHITECTURE.md) | RPC 兼容层、增量同步、默认连接与远程代理 |
 | [验证记录](docs/VALIDATION.md) | 已有证据与尚待目标设备验收的范围 |
 
 <a id="development"></a>
@@ -125,7 +147,7 @@ npm ci
 npm run dev
 ```
 
-访问 `http://127.0.0.1:5173/?demo=1` 查看模拟界面，可追加 `&count=500` 或 `&count=2000`。演示操作不会影响真实 Transmission。开发服务器不代理 RPC，连接真实实例请使用生产 Node 服务。
+访问 `http://127.0.0.1:5173/?demo=1` 查看模拟界面，可追加 `&count=500` 或 `&count=2000`。演示操作不会影响真实 Transmission。不带演示参数时默认通过代理连接本机 9091；连接其他 NAS 只需 Shift 点击设置、填写完整 RPC 地址与所需凭据。不要将密码写入 URL。详见[开发指南](docs/DEVELOPMENT.md)。
 
 ```bash
 npm test

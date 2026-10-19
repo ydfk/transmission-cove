@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile, stat, rm, rename } from 'node:fs/promises'
+import { mkdir, readdir, readFile, writeFile, stat, rm, rename, copyFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
@@ -14,9 +14,10 @@ const archives = [`${base}.zip`, `${base}.tar.gz`]
 const zipPath = resolve(`artifacts/${base}.pending.zip`)
 await rm(zipPath, { force: true })
 if (process.platform === 'win32') execFileSync('tar', ['-a', '-cf', zipPath, '-C', 'dist', '.'], { stdio: 'inherit' })
-else execFileSync('zip', ['-q', '-r', zipPath, 'index.html', 'assets'], { cwd: 'dist', stdio: 'inherit' })
+else execFileSync('zip', ['-q', '-r', zipPath, '.'], { cwd: 'dist', stdio: 'inherit' })
 await rename(zipPath, resolve(`artifacts/${archives[0]}`))
-execFileSync('tar', ['-czf', `artifacts/${archives[1]}`, '-C', 'dist', 'index.html', 'assets'], { stdio: 'inherit' })
-const checksums = await Promise.all(archives.map(async name => `${createHash('sha256').update(await readFile(`artifacts/${name}`)).digest('hex')}  ${name}`))
+execFileSync('tar', ['-czf', `artifacts/${archives[1]}`, '-C', 'dist', '.'], { stdio: 'inherit' })
+await copyFile('scripts/install.sh', 'artifacts/install.sh')
+const checksums = await Promise.all([...archives, 'install.sh'].map(async name => `${createHash('sha256').update(await readFile(`artifacts/${name}`)).digest('hex')}  ${name}`))
 await writeFile('artifacts/SHA256SUMS', `${checksums.join('\n')}\n`)
-console.log(`已生成 ${archives.join('、')} 和 SHA256SUMS；dist 资源数量 ${ (await readdir('dist/assets')).length }`)
+console.log(`已生成 ${archives.join('、')}、install.sh 和 SHA256SUMS；dist 资源数量 ${ (await readdir('dist/assets')).length }`)
