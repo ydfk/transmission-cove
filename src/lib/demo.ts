@@ -16,6 +16,7 @@ export function createDemoTorrents(count = 428): Torrent[] {
       error_string: i === 8 ? '演示：Tracker 暂时不可用' : '', labels: [i % 3 === 0 ? '系统镜像' : i % 3 === 1 ? '开放影像' : '资料归档'],
       download_dir: ['/volume1/downloads/系统镜像/Linux', '/volume1/downloads/影像/开源动画', '/volume1/downloads/资料', '/volume1/downloads/影像/自然', '/volume2/archive'][i % 5], peers_connected: status === 0 ? 0 : i % 24 + 1,
       trackers: [{ id: 0, announce: 'https://tracker.example.org/announce' }],
+      peers_sending_to_us: status === 4 ? i % 4 + 1 : 0, peers_getting_from_us: status === 6 ? i % 3 + 1 : 0,
       tracker_list: 'https://tracker.example.org/announce',
       tracker_stats: [{ id: 0, host: 'tracker.example.org', announce: 'https://tracker.example.org/announce', tier: 0, last_announce_result: 'Success', seeder_count: i === 8 ? -1 : 128 + i, leecher_count: i === 8 ? -1 : i % 33, next_announce_time: Date.now() / 1000 + 900 }],
       files: [{ name: `${name}/content.iso`, length: size, bytes_completed: size * progress }, { name: `${name}/README.txt`, length: 4096, bytes_completed: 4096 }],

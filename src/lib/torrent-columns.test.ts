@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { createDemoTorrents } from './demo'
-import { columnSorts, compareTorrents, fullColumns, trackerCount, validColumns } from './torrent-columns'
+import { columnSorts, compareTorrents, fullColumns, trackerCount, validColumns, swarmCountText } from './torrent-columns'
 import { legacyParams, normalize } from './protocol'
 import { LIST_FIELDS } from './types'
 
 describe('任务列表完整列', () => {
+  it('活跃 Peer 与 Tracker 总数分开显示，零和未知不混淆', () => {
+    const torrent = createDemoTorrents(1)[0]
+    expect(swarmCountText({ ...torrent, peers_sending_to_us: 4 }, 'seeders')).toBe('128(4)')
+    expect(swarmCountText({ ...torrent, peers_getting_from_us: 0 }, 'leechers')).toBe('0(0)')
+    expect(swarmCountText({ ...torrent, tracker_stats: undefined, peers_sending_to_us: 4 }, 'seeders')).toBe('—(4)')
+    expect(swarmCountText({ ...torrent, peers_sending_to_us: undefined }, 'seeders')).toBe('128(—)')
+  })
   it('Tracker 不重复累加、保留真实零值并区分未知', () => {
     const tracker = createDemoTorrents(1)[0].tracker_stats![0]
     expect(trackerCount([{ ...tracker, seeder_count: 12 }, { ...tracker, seeder_count: 18 }], 'seeder_count')).toBe(18)

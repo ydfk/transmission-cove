@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode, type CSSProperties, type MouseEvent } from 'react'
-import { ArrowDownToLine, CheckCheck, CircleAlert, Activity, CircleDashed, Pause, ScanLine, Settings2, Tag, Globe2, Network, Folder, ChevronRight, X, ChartNoAxesCombined, type LucideIcon } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpToLine, CheckCheck, CircleAlert, Activity, Pause, ScanLine, Settings2, Tag, Globe2, Network, Folder, ChevronRight, X, ChartNoAxesCombined, type LucideIcon } from 'lucide-react'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { Separator } from './ui/separator'
@@ -16,12 +16,12 @@ export const filters = [
   { key: 'all', label: '全部', icon: Network }, { key: 'downloading', label: '下载中', icon: ArrowDownToLine },
   { key: 'paused', label: '已暂停', icon: Pause }, { key: 'completed', label: '已完成', icon: CheckCheck },
   { key: 'checking', label: '校验中', icon: ScanLine }, { key: 'active', label: '活动中', icon: Activity },
-  { key: 'inactive', label: '未活动', icon: CircleDashed }, { key: 'error', label: '错误', icon: CircleAlert },
+  { key: 'seeding', label: '做种中', icon: ArrowUpToLine }, { key: 'error', label: '错误', icon: CircleAlert },
 ]
 
-function FilterSection({ title, icon: Icon, selected, onClear, children }: { title: string; icon: LucideIcon; selected?: string | null; onClear?: () => void; children: ReactNode }) {
-  const [open, setOpen] = useState(() => readStored(`sidebar.${title}`, true))
-  return <Collapsible open={open} onOpenChange={value => { setOpen(value); writeStored(`sidebar.${title}`, value) }} className="filter-section">
+function FilterSection({ title, icon: Icon, selected, onClear, children, defaultOpen = true, remember = true }: { title: string; icon: LucideIcon; selected?: string | null; onClear?: () => void; children: ReactNode; defaultOpen?: boolean; remember?: boolean }) {
+  const [open, setOpen] = useState(() => remember ? readStored(`sidebar.${title}`, defaultOpen) : defaultOpen)
+  return <Collapsible open={open} onOpenChange={value => { setOpen(value); if (remember) writeStored(`sidebar.${title}`, value) }} className="filter-section">
     <CollapsibleTrigger className="section-trigger" aria-label={`${open ? '收起' : '展开'}${title}`}><Icon /><span>{title}</span>{selected !== undefined && selected !== null ? <Badge variant="secondary">已筛选</Badge> : null}<ChevronRight className={cn('section-chevron', open && 'expanded')} /></CollapsibleTrigger>
     {selected !== undefined && selected !== null ? <div className="section-selection"><span className="truncate" title={selected || '未知目录'}>{selected || '未知目录'}</span><Button size="icon-sm" variant="ghost" aria-label={`清除${title}筛选`} onClick={onClear}><X /></Button></div> : null}
     <CollapsibleContent>{children}</CollapsibleContent>
@@ -72,7 +72,7 @@ export function Sidebar({ torrents, filter, onFilter, onSettings, connected, ope
     <div className="sidebar-scroll"><div className="sidebar-heading">任务库</div>
       <nav aria-label="任务筛选">{filters.map(item => <button key={item.key} className={cn('nav-item', filter.status === item.key && 'active')} aria-pressed={filter.status === item.key} onClick={() => onFilter({ ...filter, status: item.key })}><item.icon className={`status-${item.key}`} /><span>{item.label}</span><span className="nav-count">{counts[item.key]}</span></button>)}</nav>
       <Separator className="my-3" />
-      <FilterSection title="目录分布" icon={Folder} selected={filter.directory} onClear={() => onFilter({ ...filter, directory: null })}><ul aria-label="目录筛选" className="directory-tree">{sortedNodes(directories).map(node => <DirectoryBranch key={node.path} node={node} selected={filter.directory} onSelect={path => select('directory', path)} />)}</ul>{!directories.size ? <p className="sidebar-hint">暂无下载目录</p> : null}</FilterSection>
+      <FilterSection title="目录分布" icon={Folder} defaultOpen={false} remember={false} selected={filter.directory} onClear={() => onFilter({ ...filter, directory: null })}><ul aria-label="目录筛选" className="directory-tree">{sortedNodes(directories).map(node => <DirectoryBranch key={node.path} node={node} selected={filter.directory} onSelect={path => select('directory', path)} />)}</ul>{!directories.size ? <p className="sidebar-hint">暂无下载目录</p> : null}</FilterSection>
       <FilterSection title="标签" icon={Tag} selected={filter.label} onClear={() => onFilter({ ...filter, label: null })}><nav aria-label="标签筛选">{labels.map(([label, count]) => <button key={label} className={cn('nav-item', filter.label === label && 'active')} aria-pressed={filter.label === label} onClick={() => select('label', label)}><span className="label-dot" /><span className="truncate">{label}</span><span className="nav-count">{count}</span></button>)}</nav>{!labels.length ? <p className="sidebar-hint">选择任务后可添加标签</p> : null}</FilterSection>
       <FilterSection title="Tracker" icon={Globe2} selected={filter.tracker} onClear={() => onFilter({ ...filter, tracker: null })}><nav aria-label="Tracker 筛选">{trackers.map(([host, count]) => <button key={host} className={cn('nav-item', filter.tracker === host && 'active')} aria-pressed={filter.tracker === host} onClick={() => select('tracker', host)}><span className="tracker-dot" /><span className="truncate" title={host}>{host}</span><span className="nav-count">{count}</span></button>)}</nav>{!trackers.length ? <p className="sidebar-hint">暂无 Tracker</p> : null}</FilterSection>
       <Separator className="my-3" /><SidebarStatistics stats={stats} failed={statsFailed} connected={connected} totalSize={totalSize} />

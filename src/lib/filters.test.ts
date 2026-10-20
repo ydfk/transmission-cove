@@ -9,25 +9,16 @@ describe('任务筛选语义', () => {
     expect(matchesStatus(torrent, 'completed')).toBe(true)
     expect(matchesStatus(torrent, 'paused')).toBe(true)
     expect(matchesStatus(torrent, 'active')).toBe(false)
-    expect(matchesStatus(torrent, 'inactive')).toBe(false)
+    expect(matchesStatus(torrent, 'seeding')).toBe(false)
     expect(matchesStatus({ ...torrent, status: 6, rate_upload: 100 }, 'active')).toBe(true)
-    expect(matchesStatus({ ...torrent, status: 6 }, 'inactive')).toBe(true)
+    expect(matchesStatus({ ...torrent, status: 6 }, 'seeding')).toBe(true)
     for (const status of [1, 2]) expect(matchesStatus({ ...torrent, status }, 'checking')).toBe(true)
     for (const status of [3, 4]) expect(matchesStatus({ ...torrent, status }, 'downloading')).toBe(true)
     expect(matchesStatus({ ...torrent, error: 2 }, 'error')).toBe(true)
   })
-  it('未活动排除已暂停任务，仅匹配明确的双向零速', () => {
-    for (const percent_done of [0.4, 1]) expect(matchesStatus({ ...torrent, percent_done }, 'inactive')).toBe(false)
-    for (const status of [1, 2, 3, 4, 5, 6]) {
-      const running = { ...torrent, status }
-      expect(matchesStatus(running, 'inactive')).toBe(true)
-      expect(matchesStatus({ ...running, rate_download: 1 }, 'inactive')).toBe(false)
-      expect(matchesStatus({ ...running, rate_upload: 1 }, 'inactive')).toBe(false)
-      for (const missing of [undefined, NaN, -1]) {
-        expect(matchesStatus({ ...running, rate_download: missing } as Torrent, 'inactive')).toBe(false)
-        expect(matchesStatus({ ...running, rate_upload: missing } as Torrent, 'inactive')).toBe(false)
-      }
-    }
+  it('做种只按 daemon 状态判断，包含零速与上传中的做种任务', () => {
+    for (const rate_upload of [0, 100]) expect(matchesStatus({ ...torrent, status: 6, rate_upload }, 'seeding')).toBe(true)
+    for (const status of [0, 1, 2, 3, 4, 5]) expect(matchesStatus({ ...torrent, status, percent_done: 1 }, 'seeding')).toBe(false)
   })
   it('目录按分隔符匹配后代，避免前缀误选', () => {
     expect(withinDirectory('/a/b/c', '/a/b')).toBe(true)

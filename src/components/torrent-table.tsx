@@ -9,7 +9,7 @@ import { Progress } from './ui/progress'
 import { TorrentStatusIcon } from './torrent-status-icon'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from './ui/empty'
 import { bytes, dateTime, duration, ratio, speed, statusText } from '@/lib/format'
-import { columns, columnSorts, columnValue } from '@/lib/torrent-columns'
+import { columns, columnSorts, columnValue, swarmCountText } from '@/lib/torrent-columns'
 import { cn } from '@/lib/utils'
 import { readStored, writeStored } from '@/lib/storage'
 import type { Torrent } from '@/lib/types'
@@ -29,7 +29,7 @@ function Cell({ column, torrent, visible }: { column: string; torrent: Torrent; 
   if (['have_valid', 'downloaded_ever', 'uploaded_ever'].includes(column)) return value == null ? '—' : bytes(Number(value))
   if (['added_date', 'done_date'].includes(column)) return dateTime(value)
   if (column === 'seconds_seeding') return value == null ? '—' : duration(Number(value))
-  if (column === 'seeders' || column === 'leechers') return <span title="Tracker 报告数量；多个 Tracker 取最大值，未知时显示 —">{value == null ? '—' : Number(value).toLocaleString('zh-CN')}</span>
+  if (column === 'seeders' || column === 'leechers') return <span title={column === 'seeders' ? 'Tracker 报告种子数（正在向我发送数据的 Peer 数）' : 'Tracker 报告下载者数（正在从我下载数据的 Peer 数）'}>{swarmCountText(torrent, column)}</span>
   if (column === 'bandwidth_priority') return <span className={cn('priority-label', value === 1 && 'priority-high', value === -1 && 'priority-low')}>{value === 1 ? '高' : value === 0 ? '正常' : value === -1 ? '低' : '—'}</span>
   if (column === 'status') return <span className="status-cell" title={torrent.error_string || undefined}><TorrentStatusIcon torrent={torrent} />{statusText(torrent.status, torrent.error)}</span>
   if (column === 'labels' || column === 'download_dir') return <span className="cell-truncate" title={String(value ?? '')}>{String(value || '—')}</span>

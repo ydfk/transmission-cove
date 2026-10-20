@@ -46,6 +46,13 @@ export function columnValue(torrent: Torrent, key: string): unknown {
   return value
 }
 
+export function swarmCountText(torrent: Torrent, column: 'seeders' | 'leechers'): string {
+  const total = columnValue(torrent, column)
+  const active = torrent[column === 'seeders' ? 'peers_sending_to_us' : 'peers_getting_from_us']
+  const number = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value.toLocaleString('zh-CN') : '—'
+  return `${number(total)}(${number(active)})`
+}
+
 export function compareTorrents(left: Torrent, right: Torrent, key: string, descending: boolean) {
   const a = columnValue(left, key), b = columnValue(right, key)
   if (a == null || b == null) return a == null ? b == null ? 0 : 1 : -1

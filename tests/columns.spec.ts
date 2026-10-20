@@ -8,7 +8,7 @@ test('完整列、列选择持久化、排序、横向滚动和窄屏', async ({
   expect(await headers.count()).toBe(16)
   const first = page.locator('.torrent-row').first()
   await expect(first.locator('[data-column="have_valid"]')).toContainText('378.9 MiB')
-  await expect(first.locator('[data-column="seeders"]')).toHaveText('128')
+  await expect(first.locator('[data-column="seeders"]')).toHaveText('128(0)')
   await expect(first.locator('[data-column="seconds_seeding"]')).toHaveText('0 秒')
   await expect(first.locator('[data-column="bandwidth_priority"]')).toHaveText('低')
   await page.getByRole('button', { name: '按已上传排序', exact: true }).click()
@@ -47,6 +47,8 @@ for (const version of ['4.0.6', '4.1.3']) test(`${version} 列字段和 Tracker 
   const modern = version.startsWith('4.1')
   const fields: string[][] = []
   const torrents = createDemoTorrents(3)
+  torrents[0].peers_sending_to_us = 4
+  torrents[0].peers_getting_from_us = 2
   let trackerFailed = false
   const legacy = (value: unknown): unknown => Array.isArray(value) ? value.map(legacy) : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()), legacy(item)])) : value
   await page.route('**/transmission/rpc', async route => {
@@ -64,13 +66,15 @@ for (const version of ['4.0.6', '4.1.3']) test(`${version} 列字段和 Tracker 
   })
   await page.goto('/')
   await expect(page.locator('.torrent-row')).toHaveCount(3)
-  await expect(page.locator('.torrent-row').first().locator('[data-column="seeders"]')).toHaveText('128')
+  await expect(page.locator('.torrent-row').first().locator('[data-column="seeders"]')).toHaveText('128(4)')
+  await expect(page.locator('.torrent-row').first().locator('[data-column="leechers"]')).toHaveText('0(2)')
   const trackerField = modern ? 'tracker_stats' : 'trackerStats'
   expect(fields.find(value => value.includes(modern ? 'have_valid' : 'haveValid'))).not.toContain(trackerField)
+  expect(fields.find(value => value.includes(modern ? 'have_valid' : 'haveValid'))).toEqual(expect.arrayContaining(modern ? ['peers_sending_to_us', 'peers_getting_from_us'] : ['peersSendingToUs', 'peersGettingFromUs']))
   expect(fields.find(value => value.includes(trackerField))).toHaveLength(2)
   trackerFailed = true
   await page.getByRole('button', { name: '刷新任务' }).click()
-  await expect(page.locator('.torrent-row').first().locator('[data-column="seeders"]')).toHaveText('—')
+  await expect(page.locator('.torrent-row').first().locator('[data-column="seeders"]')).toHaveText('—(4)')
   await expect(page.locator('.torrent-row')).toHaveCount(3)
   await expect(page.getByRole('button', { name: '添加任务', exact: true })).toBeEnabled()
   await page.getByRole('button', { name: '显示列', exact: true }).click()

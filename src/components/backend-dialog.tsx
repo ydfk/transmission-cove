@@ -36,7 +36,7 @@ export function BackendDialog({ server, automatic = server, manual, onSwitch, on
       }
     } finally { if (!controller.signal.aborted) setBusy(false) }
   }
-  return <Modal title="切换后端" description="仅影响当前浏览器。保存地址，凭据仅保留在本次页面会话。" className="compact-dialog" onClose={onClose}>
+  return <Modal title="切换后端" description="仅影响当前浏览器。地址长期保存，登录在当前标签页刷新后仍有效。" className="compact-dialog" onClose={onClose}>
     <form onSubmit={connect}><FieldGroup className="gap-3">
       <TextField label="RPC 地址" required value={url} disabled={busy} placeholder="http://nas.example:9091/transmission/rpc" onChange={event => setUrl(event.target.value)} description={automatic.remoteProxy ? '填写远程 Transmission 的完整 RPC 地址，将通过内置代理连接。' : '默认连接当前 Transmission。远程地址需允许跨域访问，也可填写同源代理路径。'} />
       <TextField label="用户名" value={username} disabled={busy} autoComplete="off" onChange={event => setUsername(event.target.value)} placeholder="无需认证时留空" />

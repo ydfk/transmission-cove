@@ -1,4 +1,4 @@
-import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { HardDrive, Menu, LogOut, Moon, Plus, RefreshCw, Search, Sun, X } from 'lucide-react'
 import { toast, Toaster } from 'sonner'
@@ -22,6 +22,7 @@ import { useTransmission } from '@/hooks/use-transmission'
 import { TransmissionClient, RpcError } from '@/lib/rpc'
 import { DemoClient } from '@/lib/demo'
 import { readStored, writeStored } from '@/lib/storage'
+import { authEndpoint, readAuthSession, saveAuthSession } from '@/lib/auth-session'
 import { matches, emptyFilters } from '@/lib/filters'
 import { Statusbar } from '@/components/statusbar'
 import type { Credentials, RpcClient, RpcValues, Server } from '@/lib/types'
@@ -52,6 +53,13 @@ function Workspace({ server, client, demo, onAuthenticate, onDemo, onBackend }: 
   const connected = session.isSuccess && query.isSuccess && !query.isError
   const busy = mutation.isPending
   const error = session.error ?? query.error
+  const authPrompted = useRef(false)
+  useEffect(() => {
+    if (!demo && error instanceof RpcError && error.status === 401 && !authPrompted.current) {
+      authPrompted.current = true
+      onAuthenticate()
+    }
+  }, [demo, error, onAuthenticate])
   const aliveSelected = new Set([...selected].filter(hash => torrents.some(t => t.hash_string === hash)))
   const rows = useMemo(() => torrents.filter(t => matches(t, filter) && `${t.name} ${t.hash_string} ${t.labels?.join(' ')}`.toLowerCase().includes(deferredSearch.toLowerCase())).sort((a, b) => compareTorrents(a, b, sort.key, sort.descending)), [torrents, filter, deferredSearch, sort])
   const pagination = paginate(rows.length, page, pageSize)
@@ -109,7 +117,7 @@ export default function App() {
   const [server, setServer] = useState(() => nativeServer(location.pathname))
   const [override, setOverride] = useState(() => manualServer(readStored('connection.override', null)))
   const [backend, setBackend] = useState(new URLSearchParams(location.search).get('backend') === '1')
-  const [credentials, setCredentials] = useState<Credentials>()
+  const [auth, setAuth] = useState(readAuthSession)
   const [epoch, setEpoch] = useState(0)
   const [manage, setManage] = useState(false)
   const [ready, setReady] = useState(false)
@@ -122,13 +130,14 @@ export default function App() {
     return () => controller.abort()
   }, [])
   function login(auth: Credentials) {
-    setCredentials(auth); setDemo(false); setEpoch(value => value + 1)
+    setAuth(saveAuthSession(current, auth)); setDemo(false); setEpoch(value => value + 1)
   }
   function switchBackend(url: string | null, auth?: Credentials) {
     writeStored('connection.override', url)
-    setOverride(manualServer(url)); setCredentials(auth); setDemo(false); setManage(false); setBackend(false); setEpoch(value => value + 1)
+    setOverride(manualServer(url)); setAuth(saveAuthSession(url ? connectionTarget(url, server) : server, auth)); setDemo(false); setManage(false); setBackend(false); setEpoch(value => value + 1)
   }
   if (!ready && !demo) return <div className="loading-list" aria-label="正在读取连接配置"><Skeleton className="h-12 w-full" /></div>
   const current = override ? connectionTarget(override.url, server) : server
-  return <><ConnectedWorkspace key={`${current.id}:${epoch}:${demo}`} server={current} credentials={credentials} demo={demo} onDemo={setDemo} onAuthenticate={() => setManage(true)} onBackend={() => setBackend(true)} />{manage ? <LoginDialog onLogin={login} onClose={() => setManage(false)} /> : null}<Suspense fallback={null}>{backend ? <BackendDialog server={current} automatic={server} manual={!!override} onSwitch={switchBackend} onClose={() => setBackend(false)} /> : null}</Suspense></>
+  const credentials = auth?.endpoint === authEndpoint(current) ? auth.credentials : undefined
+  return <><ConnectedWorkspace key={`${current.id}:${epoch}:${demo}`} server={current} credentials={credentials} demo={demo} onDemo={setDemo} onAuthenticate={() => { setAuth(saveAuthSession(current)); setManage(true) }} onBackend={() => { setManage(false); setBackend(true) }} />{manage && !backend ? <LoginDialog server={current} onLogin={login} onClose={() => setManage(false)} /> : null}<Suspense fallback={null}>{backend ? <BackendDialog server={current} automatic={server} manual={!!override} onSwitch={switchBackend} onClose={() => setBackend(false)} /> : null}</Suspense></>
 }
