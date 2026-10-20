@@ -2,11 +2,13 @@
 
 工作流位于 [`.github/workflows/release.yml`](../.github/workflows/release.yml)。仓库名建议为 `transmission-cove`；镜像地址会自动从实际 GitHub 仓库路径生成，不需要把用户名写入工作流。
 
-触发条件是推送 `v*` Tag。版本必须与 `package.json`、`package-lock.json` 完全一致，例如 `v0.1.0` 或 `v0.2.0-rc.1`；不接受缺少 `v`、版本错配、前导零或 `+build` 元数据。
+触发条件是推送 `v*` Tag。发布版本以 Tag 为准，例如 `v0.0.1` 或 `v0.2.0-rc.1`；构建前自动同步 `package.json`、`package-lock.json` 顶层及根包的版本，无需提前手动更新。不接受缺少 `v`、前导零或 `+build` 元数据。
+
+同步仅修改 Actions 检出的构建文件，不创建提交、不回写分支或移动 Tag。静态包和 Docker 作业都会执行同步，因此安装包名称、界面底栏版本与镜像版本一致；依赖版本保持锁定。
 
 工作流依次执行：
 
-1. 校验版本，拒绝覆盖已经发布的同版本 Release。
+1. 校验 Tag 并同步构建版本，拒绝覆盖已经发布的同版本 Release。
 2. 安装锁定依赖，运行单元/代理测试、发布脚本测试及 Linux 安装脚本测试，执行 TypeScript 与 Vite 生产构建。
 3. 生成 `transmission-cove-<版本>-web.zip`、`transmission-cove-<版本>-web.tar.gz`、`install.sh` 和覆盖这些文件的 `SHA256SUMS`。两个安装包的根目录直接包含 `index.html` 和 `assets/`，用于原生 Web 覆盖安装。
 4. 构建 linux/amd64 与 linux/arm64 镜像，推送到 `ghcr.io/<所有者>/<仓库>`；提供 `v0.1.0` 和 `0.1.0` 两种版本标签，不自动覆盖 `latest`。
@@ -21,35 +23,35 @@ git tag -a v0.1.0 -m "Transmission Cove 0.1.0"
 git push origin v0.1.0
 ```
 
-后续版本先更新两个版本文件，再提交并打 Tag，例如：
+后续版本将需要发布的代码提交并推送，然后打 Tag，例如：
 
 ```bash
-npm version 0.2.0 --no-git-tag-version
-git add package.json package-lock.json
-git commit -m "chore: release v0.2.0"
 git push origin HEAD
 git tag -a v0.2.0 -m "Transmission Cove 0.2.0"
 git push origin v0.2.0
 ```
 
-预发布将版本替换为 `0.2.0-rc.1`。失败可在 Actions 重跑作业，或在主分支已有工作流后使用 **Run workflow** 输入原 Tag。手动运行仍检出指定 Tag，不会将主分支最新代码包装成旧版本；若 Tag 中的代码需要修改，应创建新版本。
+预发布使用 `v0.2.0-rc.1`。失败可在 Actions 重跑作业，或在主分支已有工作流后使用 **Run workflow** 输入原 Tag。手动运行仍检出指定 Tag，不会将主分支最新代码包装成旧版本；若 Tag 中的代码需要修改，应创建新版本。旧 Tag 如果指向加入版本同步功能之前的提交，单纯重跑仍会使用旧脚本；需先提交此修复，再在修复后的提交上创建新 Tag。
 
 本地也可生成相同静态包（Linux/macOS 需要 `zip` 和 `tar`；Windows 使用系统 `tar.exe`）：
 
 ```bash
+export RELEASE_TAG=v0.1.0
+node scripts/release-meta.mjs --sync
 npm ci
 npm test
 npm run test:release
 npm run build
-RELEASE_TAG=v0.1.0 npm run release:package
+npm run release:package
 ```
 
-PowerShell 最后一行改为：
+PowerShell 将第一行改为以下设置，再依次运行其余命令：
 
 ```powershell
 $env:RELEASE_TAG = 'v0.1.0'
-npm run release:package
 ```
+
+本地 `--sync` 会修改两个版本文件；不带此参数只校验，安装包脚本也保持严格校验，避免构建后才改变版本导致包名与页面内容不一致。必须先同步，再构建和打包。
 
 校验安装包：Linux 使用 `sha256sum -c SHA256SUMS`，macOS 使用 `shasum -a 256 -c SHA256SUMS`；Windows 使用 `Get-FileHash` 并与 `SHA256SUMS` 对照。发布步骤使用 [GitHub CLI Release 命令](https://cli.github.com/manual/gh_release_create)，Docker 构建使用 [Docker 官方 Action](https://github.com/docker/build-push-action)。
 
