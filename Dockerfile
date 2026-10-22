@@ -10,7 +10,8 @@ ENV NODE_ENV=production PORT=8080 SERVERS_FILE=/config/servers.json
 ENV DEFAULT_TRANSMISSION_RPC_URL=http://host.docker.internal:9091/transmission/rpc
 WORKDIR /app
 COPY --from=build /app/dist ./dist
-COPY server/index.mjs server/remote-rpc.mjs ./server/
+COPY server/index.mjs server/remote-rpc.mjs server/updates.mjs ./server/
+COPY shared/releases.mjs ./shared/
 USER node
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s CMD node -e "fetch('http://127.0.0.1:8080/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"

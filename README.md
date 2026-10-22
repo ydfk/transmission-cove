@@ -94,6 +94,6 @@ npm run dev
 
 ## 更多文档
 
-[部署与回退](docs/DEPLOYMENT.md) · [使用与排错](docs/USAGE.md) · [Tag 发布](docs/RELEASING.md) · [架构](docs/ARCHITECTURE.md) · [验证记录](docs/VALIDATION.md)
+[部署与回退](docs/DEPLOYMENT.md) · [版本更新](docs/UPDATING.md) · [使用与排错](docs/USAGE.md) · [Tag 发布](docs/RELEASING.md) · [架构](docs/ARCHITECTURE.md) · [验证记录](docs/VALIDATION.md)
 
 独立第三方项目，与 Transmission 官方无隶属关系。部署方式参考 [jianxcao/transmission-web](https://github.com/jianxcao/transmission-web)。

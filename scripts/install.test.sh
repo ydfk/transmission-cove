@@ -2,6 +2,7 @@
 # 使用隔离目录和固定下载响应，不访问 NAS、远程下载或真实 daemon。
 set -eu
 installer=$(cd "$(dirname "$0")" && pwd)/install.sh
+updater=$(cd "$(dirname "$0")" && pwd)/update-web.sh
 fixture=$(mktemp -d)
 trap 'rm -rf "$fixture"' EXIT HUP INT TERM
 export FIXTURE_DIR="$fixture"
@@ -14,6 +15,7 @@ printf keep > "$fixture/web/package-file.txt"
 printf untouched > "$fixture/settings.json"
 printf new > "$fixture/source/index.html"
 printf asset > "$fixture/source/assets/app.js"
+printf '{"version":"0.1.0","updateProtocol":1}' > "$fixture/source/cove-version.json"
 asset=transmission-cove-0.1.0-web.tar.gz
 tar -czf "$fixture/$asset" -C "$fixture/source" .
 (cd "$fixture" && sha256sum "$asset" > SHA256SUMS)
@@ -36,7 +38,7 @@ esac
 EOF
 chmod +x "$fixture/bin/curl"
 export PATH="$fixture/bin:$PATH"
-run() { sh "$installer" --web-dir "$fixture/web" --yes "$@" > "$fixture/output" 2>&1; }
+run() { sh "$installer" --web-dir "$fixture/web" --yes "$@" > "$fixture/output" 2>&1 || { cat "$fixture/output" >&2; return 1; }; }
 run
 [ "$(cat "$fixture/web/index.html")" = new ]
 [ "$(cat "$fixture/web/package-file.txt")" = keep ]
@@ -49,6 +51,9 @@ run --restore "$original"
 [ "$(cat "$fixture/web/index.html")" = old ]
 run --version v0.1.0
 [ "$(cat "$fixture/web/index.html")" = new ]
+STATIC_ROOT="$fixture/web" sh "$updater" v0.1.0 > "$fixture/output" 2>&1
+[ "$(cat "$fixture/web/cove-version.json")" = '{"version":"0.1.0","updateProtocol":1}' ]
+if STATIC_ROOT="$fixture/web" sh "$updater" > "$fixture/output" 2>&1; then echo '应拒绝缺失更新版本'; exit 1; fi
 printf '%064d  %s\n' 0 "$asset" > "$fixture/SHA256SUMS"
 if run --version v0.1.0; then echo '应拒绝损坏的校验和'; exit 1; fi
 [ "$(cat "$fixture/web/index.html")" = new ]

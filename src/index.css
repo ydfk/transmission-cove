@@ -111,6 +111,7 @@
 .statusbar { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 18px; min-height: 44px; flex-shrink: 0; padding: 5px 22px; background: var(--header); border-top: 1px solid var(--border); font-size: 11px; font-variant-numeric: tabular-nums; }
 .statusbar span { display: flex; align-items: center; gap: 5px; }
 .statusbar span > svg { width: 13px; height: 13px; }
+.status-web-version { height: 26px; padding: 0 4px; font-size: inherit; gap: 4px; }
 .status-summary { color: var(--muted-foreground); }
 .detail-panel { min-height: 200px; max-height: 70dvh; display: flex; flex-direction: column; flex-shrink: 0; border-top: 1px solid var(--border); position: relative; background: var(--background); }
 .detail-resize { position: absolute; top: -4px; height: 8px; left: 0; width: 100%; cursor: row-resize; z-index: 2; }

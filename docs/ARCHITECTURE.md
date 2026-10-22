@@ -26,6 +26,12 @@ RPC 与服务发现使用去除页面基地址凭据后的绝对 URL，避免 UR
 
 远程代理可访问服务主机能够连接的 RPC 地址，Origin 检查不是用户认证。服务应部署在可信网络，或由已有反向代理提供访问控制。容器以非 root 用户运行。无外部字体、CDN 或统计依赖。
 
+## Web 更新
+
+构建输出 `cove-version.json`，记录与 Tag 同步后的版本及更新协议。右下角版本入口独立于 RPC 查询：原生版直接读取固定 GitHub Release API（不携带凭据），独立服务通过 `GET /api/updates` 查询并缓存 5 分钟，页面每 6 小时检查。
+
+一键更新默认禁用，仅在独立服务配置绝对路径脚本、至少 32 字符的更新密钥和有效版本清单后开放。`POST /api/updates/install` 要求同源、JSON、独立更新密钥，只允许当前最新稳定版本，拒绝降级、重复操作及超限请求。服务直接执行管理员脚本，不经 shell 拼接，脚本只接收校验后的 Tag；进程输出和更新密钥不返回客户端。结束后再次读取版本清单确认结果。更新范围与部署方法见[版本更新](UPDATING.md)。
+
 ## 资料
 
 - https://github.com/transmission/transmission/blob/4.0.6/docs/rpc-spec.md

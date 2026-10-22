@@ -1,5 +1,5 @@
 export type RpcValues = Record<string, unknown>
-export interface Server { id: string; name: string; url: string; managed?: boolean; address?: string; remoteProxy?: '/api/remote-rpc'; remoteTarget?: string }
+export interface Server { id: string; name: string; url: string; managed?: boolean; address?: string; remoteProxy?: '/api/remote-rpc'; remoteTarget?: string; updates?: boolean }
 export interface SessionStats { current_stats: RpcValues; cumulative_stats: RpcValues }
 export interface Credentials { username: string; password: string }
 export interface TorrentFile { name: string; length: number; bytes_completed: number }

@@ -94,6 +94,6 @@ Open `http://127.0.0.1:5173/?demo=1` for demo data. Built with React, TypeScript
 
 ## More documentation
 
-[Deployment and rollback](docs/DEPLOYMENT.md) · [Usage and troubleshooting](docs/USAGE.md) · [Tag releases](docs/RELEASING.md) · [Architecture](docs/ARCHITECTURE.md) · [Validation record](docs/VALIDATION.md)
+[Deployment and rollback](docs/DEPLOYMENT.md) · [Web updates](docs/UPDATING.md) · [Usage and troubleshooting](docs/USAGE.md) · [Tag releases](docs/RELEASING.md) · [Architecture](docs/ARCHITECTURE.md) · [Validation record](docs/VALIDATION.md)
 
 Detailed guides are maintained in Simplified Chinese. This is an independent third-party project, not affiliated with Transmission. Deployment takes inspiration from [jianxcao/transmission-web](https://github.com/jianxcao/transmission-web).

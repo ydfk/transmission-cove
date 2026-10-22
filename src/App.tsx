@@ -32,8 +32,8 @@ const DetailPanel = lazy(() => import('@/components/detail-panel').then(module =
 const SettingsDialog = lazy(() => import('@/components/settings-dialog').then(module => ({ default: module.SettingsDialog })))
 const BackendDialog = lazy(() => import('@/components/backend-dialog').then(module => ({ default: module.BackendDialog })))
 
-interface WorkspaceProps { server: Server; client: RpcClient; demo: boolean; onAuthenticate: () => void; onDemo: (active: boolean) => void; onBackend: () => void }
-function Workspace({ server, client, demo, onAuthenticate, onDemo, onBackend }: WorkspaceProps) {
+interface WorkspaceProps { updates?: boolean; server: Server; client: RpcClient; demo: boolean; onAuthenticate: () => void; onDemo: (active: boolean) => void; onBackend: () => void }
+function Workspace({ updates, server, client, demo, onAuthenticate, onDemo, onBackend }: WorkspaceProps) {
   const [filter, setFilter] = useState(emptyFilters)
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search)
@@ -99,7 +99,7 @@ function Workspace({ server, client, demo, onAuthenticate, onDemo, onBackend }: 
       {session.isPending || (session.isSuccess && query.isPending) ? <div className="loading-list" aria-label="正在加载任务">{Array.from({ length: 8 }, (_, index) => <Skeleton key={index} className="h-12 w-full" />)}</div> : !connected && !torrents.length ? <Empty className="flex-1"><EmptyHeader><EmptyMedia variant="icon"><HardDrive /></EmptyMedia><EmptyTitle>等待当前 Transmission</EmptyTitle><EmptyDescription>已自动尝试连接当前实例，请确认 Transmission 正在运行并允许 RPC 访问。</EmptyDescription></EmptyHeader><EmptyContent><Button onClick={() => { void session.refetch(); void refresh() }}>重试连接</Button></EmptyContent></Empty> : <TorrentTable key={`${pagination.page}:${pageSize}:${JSON.stringify(filter)}:${deferredSearch}:${sort.key}:${sort.descending}`} torrents={pageRows} selected={aliveSelected} onSelect={setSelected} focused={focused} onFocus={setFocused} sort={sort} onSort={setSort} visible={visible} onAction={onAction} disabled={busy || !connected} />}
       <ListPagination total={rows.length} {...pagination} size={pageSize} onPage={setPage} onSize={size => { setPageSize(size); writeStored('pageSize', size) }} />
       <Suspense fallback={<Skeleton className="h-48" />}>{focused && connected && torrents.some(t => t.hash_string === focused) ? <DetailPanel key={focused} hash={focused} client={client} execute={execute} pending={busy} onClose={() => setFocused(null)} /> : null}</Suspense>
-      <Statusbar session={session.data} download={totalDownload} upload={totalUpload} server={server} demo={demo} disabled={!connected || busy} onToggle={() => { void execute('session_set', { alt_speed_enabled: !session.data?.alt_speed_enabled }).catch(() => {}) }} />
+      <Statusbar updates={updates} session={session.data} download={totalDownload} upload={totalUpload} server={server} demo={demo} disabled={!connected || busy} onToggle={() => { void execute('session_set', { alt_speed_enabled: !session.data?.alt_speed_enabled }).catch(() => {}) }} />
     </main>
     <Suspense fallback={null}>{modal === 'add' && session.data ? <AddDialog client={client} session={session.data} files={files} onClose={() => setModal(null)} onAdded={refresh} /> : null}
     {modal === 'settings' && session.data ? <SettingsDialog session={session.data} client={client} execute={execute} pending={busy} onClose={() => setModal(null)} /> : null}
@@ -139,5 +139,5 @@ export default function App() {
   if (!ready && !demo) return <div className="loading-list" aria-label="正在读取连接配置"><Skeleton className="h-12 w-full" /></div>
   const current = override ? connectionTarget(override.url, server) : server
   const credentials = auth?.endpoint === authEndpoint(current) ? auth.credentials : undefined
-  return <><ConnectedWorkspace key={`${current.id}:${epoch}:${demo}`} server={current} credentials={credentials} demo={demo} onDemo={setDemo} onAuthenticate={() => { setAuth(saveAuthSession(current)); setManage(true) }} onBackend={() => { setManage(false); setBackend(true) }} />{manage && !backend ? <LoginDialog server={current} onLogin={login} onClose={() => setManage(false)} /> : null}<Suspense fallback={null}>{backend ? <BackendDialog server={current} automatic={server} manual={!!override} onSwitch={switchBackend} onClose={() => setBackend(false)} /> : null}</Suspense></>
+  return <><ConnectedWorkspace key={`${current.id}:${epoch}:${demo}`} server={current} updates={server.updates} credentials={credentials} demo={demo} onDemo={setDemo} onAuthenticate={() => { setAuth(saveAuthSession(current)); setManage(true) }} onBackend={() => { setManage(false); setBackend(true) }} />{manage && !backend ? <LoginDialog server={current} onLogin={login} onClose={() => setManage(false)} /> : null}<Suspense fallback={null}>{backend ? <BackendDialog server={current} automatic={server} manual={!!override} onSwitch={switchBackend} onClose={() => setBackend(false)} /> : null}</Suspense></>
 }

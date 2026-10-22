@@ -4,9 +4,10 @@ import { resolve, extname, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { lookup } from 'node:dns/promises'
 import { remoteRpcTarget } from './remote-rpc.mjs'
+import { createUpdates } from './updates.mjs'
 
 const maxBody = 24 * 1024 * 1024
-const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.woff2': 'font/woff2' }
+const mime = { '.html': 'text/html; charset=utf-8', '.json': 'application/json', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.woff2': 'font/woff2' }
 
 export function validateServers(input) {
   if (!Array.isArray(input)) throw new Error('服务器配置必须是数组')
@@ -43,17 +44,19 @@ export async function upstreamUrl(address, resolver = lookup) {
   }
   return url.href
 }
-export function createApp({ servers = [], root = resolve('dist'), fetcher = fetch } = {}) {
+export function createApp({ servers = [], root = resolve('dist'), fetcher = fetch, updates = {} } = {}) {
   const configured = validateServers(servers)
+  const handleUpdates = createUpdates({ root, ...updates })
   return http.createServer(async (request, response) => {
     response.setHeader('X-Content-Type-Options', 'nosniff')
     response.setHeader('Referrer-Policy', 'same-origin')
     response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http: https:; font-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'")
     try {
       const url = new URL(request.url, 'http://localhost')
+      if (await handleUpdates(request, response, url.pathname)) return
       if (url.pathname === '/api/server' && request.method === 'GET') {
         const server = configured[0]
-        sendJson(response, 200, server ? { id: 'current', name: '当前 Transmission', url: '/api/rpc', address: server.url, managed: true, remoteProxy: '/api/remote-rpc' } : null); return
+        sendJson(response, 200, server ? { id: 'current', name: '当前 Transmission', url: '/api/rpc', address: server.url, managed: true, remoteProxy: '/api/remote-rpc', updates: true } : null); return
       }
       if (url.pathname === '/api/rpc' || url.pathname === '/api/remote-rpc') {
         const remote = url.pathname === '/api/remote-rpc'
@@ -90,7 +93,7 @@ export function createApp({ servers = [], root = resolve('dist'), fetcher = fetc
       let fileStat
       try { fileStat = await stat(path) } catch { sendJson(response, 404, { error: '文件不存在' }); return }
       if (!fileStat.isFile()) { sendJson(response, 404, { error: '文件不存在' }); return }
-      response.writeHead(200, { 'Content-Type': mime[extname(path)] ?? 'application/octet-stream', 'Cache-Control': extname(path) === '.html' ? 'no-cache' : 'public, max-age=86400' })
+      response.writeHead(200, { 'Content-Type': mime[extname(path)] ?? 'application/octet-stream', 'Cache-Control': extname(path) === '.html' || pathname === '/cove-version.json' ? 'no-cache' : 'public, max-age=86400' })
       response.end(request.method === 'HEAD' ? undefined : await readFile(path))
     } catch (error) {
       if (!response.headersSent) sendJson(response, error.message === 'body_limit' ? 413 : 502, { error: '请求处理失败，请检查上游连接或请求大小' })
@@ -106,7 +109,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     if (error.code === 'ENOENT') servers = [{ id: 'current', name: '当前 Transmission', url: process.env.DEFAULT_TRANSMISSION_RPC_URL ?? 'http://127.0.0.1:9091/transmission/rpc' }]
     else throw new Error('无法读取服务器配置，请检查 JSON 格式')
   }
-  const app = createApp({ servers, root: resolve(process.env.STATIC_ROOT ?? 'dist') })
+  const app = createApp({ servers, root: resolve(process.env.STATIC_ROOT ?? 'dist'), updates: { script: process.env.COVE_UPDATE_SCRIPT, token: process.env.COVE_UPDATE_TOKEN } })
   app.listen(Number(process.env.PORT ?? 8080), process.env.HOST ?? '0.0.0.0', () => console.log(`Transmission Cove 已启动，端口 ${process.env.PORT ?? 8080}，已配置 ${servers.length} 个上游`))
   for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => { app.close(); app.closeIdleConnections() })
 }

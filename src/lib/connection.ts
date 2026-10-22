@@ -29,7 +29,7 @@ export async function discoverServer(pathname: string, fetcher: typeof fetch, si
     const response = await fetcher(requestUrl('./api/server'), { signal, credentials: 'same-origin', cache: 'no-store' })
     if (response.ok && response.headers.get('content-type')?.includes('application/json')) {
       const current = await response.json() as Server | null
-      if (current?.managed && current.url === '/api/rpc' && typeof current.address === 'string') return { id: 'current', name: '当前 Transmission', managed: true, url: '/api/rpc', address: current.address, ...(current.remoteProxy === '/api/remote-rpc' ? { remoteProxy: current.remoteProxy } : {}) }
+      if (current?.managed && current.url === '/api/rpc' && typeof current.address === 'string') return { id: 'current', name: '当前 Transmission', managed: true, url: '/api/rpc', address: current.address, ...(current.updates === true ? { updates: true } : {}), ...(current.remoteProxy === '/api/remote-rpc' ? { remoteProxy: current.remoteProxy } : {}) }
     }
   } catch (error) { if (signal?.aborted) throw error }
   return native
