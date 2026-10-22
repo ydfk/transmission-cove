@@ -1,4 +1,5 @@
 import { legacyParams, normalize } from './protocol'
+import { requestUrl } from './request-url'
 import type { Credentials, RpcClient, RpcValues, Server } from './types'
 
 export class RpcError extends Error {
@@ -49,7 +50,7 @@ export class TransmissionClient implements RpcClient {
       let response: Response
       try {
         const fetcher = this.fetcher
-        response = await fetcher(this.server.url, { method: 'POST', headers, body, credentials: 'same-origin', cache: 'no-store', signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20000)]) : AbortSignal.timeout(20000) })
+        response = await fetcher(requestUrl(this.server.url), { method: 'POST', headers, body, credentials: 'same-origin', cache: 'no-store', signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20000)]) : AbortSignal.timeout(20000) })
       } catch (error) {
         if (signal?.aborted) throw error
         throw new RpcError('连接失败或超时，请检查 RPC 地址、代理与网络；操作结果未知时请先刷新再重试')

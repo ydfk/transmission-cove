@@ -1,10 +1,11 @@
 import type { Credentials, Server } from './types'
+import { requestUrl } from './request-url'
 
 const key = 'transmission-web.v1.auth.session'
 export interface AuthSession { endpoint: string; credentials: Credentials }
 
 export function authEndpoint(server: Server): string {
-  return new URL(server.remoteTarget ?? server.address ?? server.url, location.href).href
+  return requestUrl(server.remoteTarget ?? server.address ?? server.url)
 }
 
 export function readAuthSession(): AuthSession | undefined {

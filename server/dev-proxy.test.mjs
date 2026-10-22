@@ -22,8 +22,9 @@ it('开发代理透传认证与握手，拒绝跨站和陌生 Host，目标固�
   cleanup.push(() => vite.close())
   await vite.listen()
   const base = `http://127.0.0.1:${vite.httpServer.address().port}`
-  expect(await fetch(`${base}/api/server`).then(r => r.json())).toMatchObject({ managed: true, url: '/api/rpc', address })
-  const options = { method: 'POST', body: '{"method":"session-get"}', headers: { 'Content-Type': 'application/json', Origin: base } }
+  // 临时 Vite 重启后可能复用端口，关闭测试连接以免复用已销毁服务的 keep-alive socket。
+  expect(await fetch(`${base}/api/server`, { headers: { Connection: 'close' } }).then(r => r.json())).toMatchObject({ managed: true, url: '/api/rpc', address })
+  const options = { method: 'POST', body: '{"method":"session-get"}', headers: { 'Content-Type': 'application/json', Origin: base, Connection: 'close' } }
   expect((await fetch(`${base}/api/rpc`, options)).status).toBe(401)
   options.headers.Authorization = 'Basic test'
   const handshake = await fetch(`${base}/api/rpc`, options)
@@ -49,5 +50,5 @@ it('未设置 NAS 地址的开发版默认连接本机，并声明远程切换�
   cleanup.push(() => vite.close())
   await vite.listen()
   const base = `http://127.0.0.1:${vite.httpServer.address().port}`
-  expect(await fetch(`${base}/api/server`).then(r => r.json())).toMatchObject({ address: 'http://127.0.0.1:9091/transmission/rpc', remoteProxy: '/api/remote-rpc' })
+  expect(await fetch(`${base}/api/server`, { headers: { Connection: 'close' } }).then(r => r.json())).toMatchObject({ address: 'http://127.0.0.1:9091/transmission/rpc', remoteProxy: '/api/remote-rpc' })
 })
