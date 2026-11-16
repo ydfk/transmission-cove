@@ -1,5 +1,25 @@
 import { expect, test } from '@playwright/test'
 
+test('旧版脚本下线后，点击任务行或勾选框仍可打开详情', async ({ page }) => {
+  await page.goto('/?demo=1')
+  const rows = page.locator('.torrent-row')
+  await expect(rows.first()).toBeVisible()
+
+  // 模拟工作台已打开，随后部署替换了旧版脚本。
+  await page.route('**/*', route => route.request().resourceType() === 'script' ? route.fulfill({ status: 404 }) : route.fallback())
+  const navigations: string[] = []
+  page.on('framenavigated', frame => { if (frame === page.mainFrame()) navigations.push(frame.url()) })
+  const detail = page.getByRole('region', { name: '任务详情' })
+  await rows.first().getByRole('cell').nth(1).click()
+  await expect(detail.locator('.overview-grid')).toBeVisible()
+  await detail.getByRole('button', { name: '关闭详情' }).click()
+
+  await rows.nth(1).getByRole('checkbox').click()
+  await expect(detail.locator('.overview-grid')).toBeVisible()
+  await expect(rows.nth(1)).toHaveAttribute('aria-selected', 'true')
+  expect(navigations).toEqual([])
+})
+
 test('紧凑详情、旧目录偏好不再自动展开、速度旁显示生效限速', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('transmission-web.v1.sidebar.目录分布', 'true'))
   await page.goto('/?demo=1')

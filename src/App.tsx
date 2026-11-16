@@ -10,6 +10,8 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Skeleton } from '@/components/ui/skeleton'
 import { Sidebar, filters } from '@/components/sidebar'
 import { TorrentTable, type Sort } from '@/components/torrent-table'
+// 随工作台加载详情组件，避免更新部署后点击任务时请求已经下线的旧版脚本。
+import { DetailPanel } from '@/components/detail-panel'
 import { LoginDialog } from '@/components/login-dialog'
 import { BatchActions } from '@/components/batch-actions'
 import { ColumnPicker } from '@/components/column-picker'
@@ -28,7 +30,6 @@ import { Statusbar } from '@/components/statusbar'
 import type { Credentials, RpcClient, RpcValues, Server } from '@/lib/types'
 
 const AddDialog = lazy(() => import('@/components/add-dialog').then(module => ({ default: module.AddDialog })))
-const DetailPanel = lazy(() => import('@/components/detail-panel').then(module => ({ default: module.DetailPanel })))
 const SettingsDialog = lazy(() => import('@/components/settings-dialog').then(module => ({ default: module.SettingsDialog })))
 const BackendDialog = lazy(() => import('@/components/backend-dialog').then(module => ({ default: module.BackendDialog })))
 
@@ -98,7 +99,7 @@ function Workspace({ updates, server, client, demo, onAuthenticate, onDemo, onBa
       {error ? <Alert variant="destructive" className="connection-error"><AlertTitle>无法连接 Transmission</AlertTitle><AlertDescription>{error.message}<div className="flex flex-wrap gap-2 mt-3">{error instanceof RpcError && error.status === 401 ? <Button variant="outline" size="sm" onClick={onAuthenticate}>登录 Transmission</Button> : null}<Button variant="outline" size="sm" onClick={() => { void session.refetch(); void refresh() }}>重新连接</Button>{!demo ? <Button variant="ghost" size="sm" onClick={() => onDemo(true)}>体验演示界面</Button> : null}</div></AlertDescription></Alert> : null}
       {session.isPending || (session.isSuccess && query.isPending) ? <div className="loading-list" aria-label="正在加载任务">{Array.from({ length: 8 }, (_, index) => <Skeleton key={index} className="h-12 w-full" />)}</div> : !connected && !torrents.length ? <Empty className="flex-1"><EmptyHeader><EmptyMedia variant="icon"><HardDrive /></EmptyMedia><EmptyTitle>等待当前 Transmission</EmptyTitle><EmptyDescription>已自动尝试连接当前实例，请确认 Transmission 正在运行并允许 RPC 访问。</EmptyDescription></EmptyHeader><EmptyContent><Button onClick={() => { void session.refetch(); void refresh() }}>重试连接</Button></EmptyContent></Empty> : <TorrentTable key={`${pagination.page}:${pageSize}:${JSON.stringify(filter)}:${deferredSearch}:${sort.key}:${sort.descending}`} torrents={pageRows} selected={aliveSelected} onSelect={setSelected} focused={focused} onFocus={setFocused} sort={sort} onSort={setSort} visible={visible} onAction={onAction} disabled={busy || !connected} />}
       <ListPagination total={rows.length} {...pagination} size={pageSize} onPage={setPage} onSize={size => { setPageSize(size); writeStored('pageSize', size) }} />
-      <Suspense fallback={<Skeleton className="h-48" />}>{focused && connected && torrents.some(t => t.hash_string === focused) ? <DetailPanel key={focused} hash={focused} client={client} execute={execute} pending={busy} onClose={() => setFocused(null)} /> : null}</Suspense>
+      {focused && connected && torrents.some(t => t.hash_string === focused) ? <DetailPanel key={focused} hash={focused} client={client} execute={execute} pending={busy} onClose={() => setFocused(null)} /> : null}
       <Statusbar updates={updates} session={session.data} download={totalDownload} upload={totalUpload} server={server} demo={demo} disabled={!connected || busy} onToggle={() => { void execute('session_set', { alt_speed_enabled: !session.data?.alt_speed_enabled }).catch(() => {}) }} />
     </main>
     <Suspense fallback={null}>{modal === 'add' && session.data ? <AddDialog client={client} session={session.data} files={files} onClose={() => setModal(null)} onAdded={refresh} /> : null}
